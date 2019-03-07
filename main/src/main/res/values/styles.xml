@@ -1,0 +1,36 @@
+<resources>
+
+    <style name="AppTheme" parent="Theme.AppCompat">
+        <!--<item name="colorPrimary">@color/colorPrimary</item>-->
+        <!--<item name="colorPrimaryDark">@color/colorPrimaryDark</item>-->
+        <!--<item name="colorAccent">@color/colorAccent</item>-->
+        <item name="android:windowBackground">@color/darkBackground</item>
+        <!--<item name="android:editTextColor">@color/font</item>-->
+        <!--<item name="android:textColorPrimary">@color/font</item>-->
+        <!--<item name="android:textColorPrimaryInverse">@color/fontInverse</item>-->
+        <!--<item name="android:textColorSecondary">@color/font</item>-->
+        <!--<item name="android:textColorSecondaryInverse">@color/font</item>-->
+        <!--<item name="android:textColorTertiary">@color/font</item>-->
+        <!--<item name="android:textColorTertiaryInverse">@color/font</item>-->
+    </style>
+    <style name="AppDisplayText">
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+    <style name="AppDisplay">
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+    </style>
+    <style name="DisplayCell">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:padding">4dp</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+    <style name="DisplayCell.History">
+        <item name="android:background">@color/darkBackground3</item>
+        <item name="android:gravity">start</item>
+    </style>
+</resources>

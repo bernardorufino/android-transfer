@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Android Playground</string>
+    <string name="transfer_service_description">Transfer of data from producer to consumer</string>
+</resources>

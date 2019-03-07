@@ -1,0 +1,150 @@
+package com.brufino.android.playground.transfer.task;
+
+import android.content.Context;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.util.Log;
+import androidx.annotation.*;
+import androidx.lifecycle.*;
+import com.brufino.android.common.CommonConstants;
+import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
+import com.brufino.android.playground.extensions.livedata.transform.Transform;
+import com.brufino.android.playground.transfer.*;
+import com.brufino.android.playground.transfer.TransferManager;
+import com.brufino.android.playground.transfer.task.tasks.TaskFactory;
+import com.brufino.android.playground.extensions.ApplicationContext;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import static com.brufino.android.common.utils.Preconditions.checkNotNull;
+import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
+
+public class TaskManager {
+    private static final String THREAD_NAME = "task-manager";
+
+    private final Object mTaskLock = new Object();
+    private final Context mContext;
+    private final Looper mLooper;
+    private final MutableLiveData<Optional<TransferTask>> mLiveTask = new MutableLiveData<>();
+    private final LiveData<Optional<TaskInformation>> mTaskInformation;
+    private final ComputableLiveData<List<TaskEntry>> mLiveHistory;
+    private final TaskFactory mTaskFactory;
+    private final TaskHistory mTaskHistory;
+
+    @GuardedBy("mTaskLock")
+    private final List<TaskEntry> mHistory;
+
+    @GuardedBy("mTaskLock")
+    @Nullable
+    private TransferTask mTask;
+
+
+    @MainThread
+    public TaskManager(
+            ApplicationContext context,
+            TaskFactory taskFactory,
+            TaskHistory taskHistory) {
+        mTaskInformation =
+                Transform.source(mLiveTask)
+                        .<TransferTask>optional()
+                        .switchMapIfPresent(TransferTask::getLiveTaskInformation)
+                        .getLiveData();
+        mContext = context.getContext();
+        mTaskFactory = taskFactory;
+        mTaskHistory = taskHistory;
+        HandlerThread thread = new HandlerThread(THREAD_NAME);
+        thread.start();
+        mLooper = thread.getLooper();
+        mHistory = new ArrayList<>(taskHistory.open());
+        mLiveHistory =  computableLiveData(new HandlerExecutor(mLooper), this::getHistory);
+    }
+
+    private List<TaskEntry> getHistory() {
+        synchronized (mTaskLock) {
+            return new CopyOnWriteArrayList<>(mHistory);
+        }
+    }
+
+    public LiveData<Optional<TaskInformation>> getTaskInformation() {
+        return mTaskInformation;
+    }
+
+    public LiveData<List<TaskEntry>> getLiveHistory() {
+        return mLiveHistory.getLiveData();
+    }
+
+    public void clearHistory() {
+        synchronized (mTaskLock) {
+            mHistory.clear();
+            onHistoryChangedLocked();
+        }
+    }
+
+    @GuardedBy("mTaskLock")
+    private void onHistoryChangedLocked() {
+        mLiveHistory.invalidate();
+        try {
+            mTaskHistory.save(mHistory);
+        } catch (IOException e) {
+            Log.e(CommonConstants.TAG, "Error persisting history", e);
+        }
+    }
+
+    @GuardedBy("mTaskLock")
+    private void setTaskLocked(@Nullable TransferTask task) {
+        mTask = task;
+        mLiveTask.postValue(Optional.ofNullable(task));
+    }
+
+    public TransferTask startTask(
+            @TransferManager.Code int code,
+            TransferConfiguration configuration) throws ConcurrentTaskException {
+        synchronized (mTaskLock) {
+            if (mTask != null) {
+                throw new ConcurrentTaskException(
+                        "Task " + mTask + " already running, can't start another");
+            }
+            TransferTask task = mTaskFactory.getTask(code, configuration, mLooper);
+            Lifecycle taskLifecycle = task.getLifecycle();
+            taskLifecycle.addObserver(new TaskObserver());
+            Log.d(CommonConstants.TAG, "Triggering task " + task.getName() + " with " + configuration);
+            task.trigger();
+            setTaskLocked(task);
+            return task;
+        }
+    }
+
+    /**
+     * If the main-thread is very busy, when for example there are 1000+ tasks and the history
+     * fragment has just too much text, the task will slow down in places where we have callbacks
+     * depending on the main-thread, such as bindService() and its connection.
+     */
+    private class TaskObserver implements DefaultLifecycleObserver {
+        @Override
+        public void onStop(LifecycleOwner owner) {
+            synchronized (mTaskLock) {
+                checkNotNull(mTask);
+                TaskInformation information = checkNotNull(mTask.getTaskInformation());
+                Map<String, TaskMeasurement> measurements = mTask.getMeasurements();
+                mHistory.add(
+                        new TaskEntry(
+                                information.name,
+                                information.getTimeElapsed(),
+                                information.inputRead,
+                                information.outputWritten,
+                                information.configuration,
+                                measurements));
+                onHistoryChangedLocked();
+                setTaskLocked(null);
+            }
+        }
+    }
+
+    public static class ConcurrentTaskException extends Exception {
+        private ConcurrentTaskException(String message) {
+            super(message);
+        }
+    }
+}

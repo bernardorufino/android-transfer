@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <data>
+        <import type="com.brufino.android.playground.transfer.TransferManager"/>
+        <variable
+                name="viewModel"
+                type="com.brufino.android.playground.components.main.MainViewModel"/>
+        <variable
+                name="actions"
+                type="com.brufino.android.playground.components.main.MainActivity.Actions"/>
+    </data>
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingTop="10dp"
+            android:background="@color/darkBackground">
+        <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+            <!--style="?android:attr/buttonBarStyle"-->
+
+            <!--<Button-->
+                    <!--android:text="S"-->
+                    <!--android:onClick="@{view -> actions.startTask(TransferManager.Code.SINGLE_THREAD)}"-->
+                    <!--android:layout_width="wrap_content"-->
+                    <!--android:layout_height="wrap_content"/>-->
+
+            <!--style="?android:attr/buttonBarButtonStyle"-->
+
+            <!--<Button-->
+                    <!--android:text="M"-->
+                    <!--android:onClick="@{view -> actions.startTask(TransferManager.Code.MULTI_THREAD)}"-->
+                    <!--android:layout_width="wrap_content"-->
+                    <!--android:layout_height="wrap_content"/>-->
+
+            <Button
+                    android:text="Clear Queue"
+                    android:onClick="@{view -> actions.clearQueue()}"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+
+            <Button
+                    android:text="Debug"
+                    android:onClick="@{view -> actions.debug()}"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="15dp"
+                android:layout_marginEnd="15dp"
+                android:paddingTop="5dp"
+                android:foo="@{viewModel.queueStatus}"
+                android:ellipsize="end"
+                android:maxLines="1"
+                tools:text="S, S, I"/>
+
+        <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingTop="5dp"
+                android:foo="@{viewModel.transferStatus}"
+                android:lines="1"
+                tools:text="IDLE"/>
+
+        <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingTop="5dp"
+                android:foo="@{viewModel.serviceStatus}"
+                android:lines="2"
+                tools:text="Throughput"/>
+
+        <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="5dp"
+                android:gravity="center">
+            <Button
+                    android:text="Clear History"
+                    android:onClick="@{view -> actions.clearHistory()}"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            <Button
+                    android:text="@{viewModel.sheetButton}"
+                    android:onClick="@{view -> actions.exportSheet()}"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:enabled="@{!viewModel.loadingSheet}"/>
+        </LinearLayout>
+
+        <androidx.viewpager.widget.ViewPager
+                android:id="@+id/display"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:currentTab="@={viewModel.currentTab}">
+
+            <com.google.android.material.tabs.TabLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top"/>
+
+        </androidx.viewpager.widget.ViewPager>
+    </LinearLayout>
+</layout>

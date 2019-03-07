@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android">
+    <data>
+        <import type="android.view.Gravity"/>
+        <variable name="cell"
+                  type="com.brufino.android.playground.databinding.TableCell&lt;String>"/>
+    </data>
+    <TextView
+            android:background="@{cell.isEven() ? @color/darkBackground2 : @color/darkBackground3}"
+            android:gravity="@{cell.isHeader() ? Gravity.CENTER : Gravity.END}"
+            android:text="@{cell.content}"
+            style="@style/DisplayCell"/>
+</layout>
