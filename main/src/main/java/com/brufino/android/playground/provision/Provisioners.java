@@ -157,6 +157,11 @@ public class Provisioners {
             public TransferManager getTransferManager() {
                 return mProvisioner.getTransferManager(ApplicationContext.from(service));
             }
+
+            @Override
+            public ExecutorService getRequestExecutor() {
+                return mProvisioner.getRequestExecutor();
+            }
         };
     }
 

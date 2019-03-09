@@ -63,9 +63,6 @@ public class TransferManager {
     @GuardedBy("mRequestSemaphore")
     private final AtomicInteger mNextStartId = new AtomicInteger(FIRST_START_ID);
 
-    @GuardedBy("mRequestSemaphore")
-    private boolean mStopping = false;
-
     @MainThread
     public TransferManager(
             ApplicationContext context,
@@ -145,63 +142,16 @@ public class TransferManager {
             if (service.isPresent()) {
                 int startId = mNextStartId.getAndIncrement();
                 service.get().request(request, startId);
-                Log.d("BML", "request(TRANSFER_MANAGER/" + startId + ")");
                 return;
             }
         } finally {
             mRequestSemaphore.release();
         }
         int startId = mNextStartServiceId.getAndIncrement();
-        Log.d("BML", "request(START_SERVICE/" + startId + ")");
         mContext.startForegroundService(request.getIntent(mContext));
     }
 
     private final AtomicInteger mNextStartServiceId = new AtomicInteger(0);
-
-    /**
-     * Tries to begin stopping the service. If {@code startId} was the last one issued for a
-     * transfer request via {@link #enqueueTransfer(int, TransferConfiguration)} and subsequent
-     * {@link TransferService#request(TransferRequest, int)} then returns true and allows the
-     * caller to stop the service.
-     *
-     * <p>Returning {@code true} means that the caller MUST call {@link #finishStopService(boolean)}
-     * at some point. Note however that the caller still has the chance of aborting the stop by
-     * passing {@code false} to {@link #finishStopService(boolean)}.
-     *
-     * <p>The caller MUST NOT call {@link #finishStopService(boolean)} if {@code false} is
-     * returned from this method.
-     */
-    boolean tryBeginStopService(int startId) throws InterruptedException {
-        mRequestSemaphore.acquire(SEMAPHORE_PERMITS);
-        Log.d("BMReq", "TM.tryBeginStopService(TRANSFER_MANAGER/" + startId + ")");
-        if (startId != mNextStartId.get() - 1) {
-            mRequestSemaphore.release(SEMAPHORE_PERMITS);
-            return false;
-        }
-        mStopping = true;
-        return true;
-    }
-
-    /**
-     * Finishes stopping the service if {@code stop} is true, otherwise aborts and the service
-     * continues running (unless stopped by other means).
-     */
-    void finishStopService(boolean stop) {
-        checkState(
-                mStopping,
-                "finishStopService() MUST NOT be called unless tryBeginStopService() was called AND "
-                        + "returned true.");
-
-        Log.d("BMReq", "TM.finishStopService(stop = " + stop + ")");
-        try {
-            if (stop) {
-                mLiveService.setValue(empty());
-            }
-            mStopping = false;
-        } finally {
-            mRequestSemaphore.release(SEMAPHORE_PERMITS);
-        }
-    }
 
     @MainThread
     void onServiceCreated(TransferManagerService service) throws InterruptedException {
@@ -215,13 +165,18 @@ public class TransferManager {
         }
     }
 
+    /**
+     * After this method returns any request made via {@link #enqueueTransfer(int,
+     * TransferConfiguration)} will be fulfilled via Android start-service infra-structure, *not*
+     * directly via {@link TransferManagerService#request(TransferRequest, int)}.
+     *
+     * Also, after this method returns there won't be any direct calls to the service.
+     */
     @MainThread
     void onServiceDestroy() throws InterruptedException {
         mRequestSemaphore.acquire(SEMAPHORE_PERMITS);
         Log.d("BMReq", "onServiceDestroy()");
         try {
-            // It should already be empty unless the service wasn't cleanly destroyed (i.e.
-            // called tryBeginStopService() and finishStopService()).
             mLiveService.setValue(empty());
         } finally {
             mRequestSemaphore.release(SEMAPHORE_PERMITS);

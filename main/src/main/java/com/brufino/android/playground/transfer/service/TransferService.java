@@ -19,10 +19,7 @@ import com.brufino.android.playground.transfer.task.TaskManager;
 import com.brufino.android.playground.transfer.task.TransferTask;
 
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.resettingInterrupt;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
@@ -31,6 +28,9 @@ public class TransferService extends TransferManagerService {
     private static final String THREAD_NAME = "transfer-service";
     private static final int NOTIFICATION_ID = 1;
     private static final String NOTIFICATION_INITIAL_TEXT = "In progress";
+
+    /** Timeout to shutdown on empty queue. */
+    private static final long TIMEOUT_SHUTDOWN_MS = 2000;
 
     private final MutableLiveData<Double> mLiveThroughput = new MutableLiveData<>();
     private final TransferServiceProvisioner mProvisioner;
@@ -59,6 +59,13 @@ public class TransferService extends TransferManagerService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        // After super.onDestroy() any requests will result in a new service being spun and there
+        // will be no more direct calls to this object (like clearQueue() for instance), so it's
+        // a good time to re-request any left over in the queue (that might have ended up there
+        // after the time-out on the service thread).
+        for (TransferRequest request : mQueue) {
+            retry(request);
+        }
         resettingInterrupt(mServiceThread::join);
         stopForeground(true);
     }
@@ -94,7 +101,10 @@ public class TransferService extends TransferManagerService {
         while (true) {
             try {
                 long startTime = System.nanoTime();
-                TransferRequest request = mQueue.take();
+                TransferRequest request = mQueue.poll(TIMEOUT_SHUTDOWN_MS, TimeUnit.MILLISECONDS);
+                if (request == null) {
+                    throw new TimeoutException();
+                }
                 onQueueChanged();
                 final TransferTask task;
                 try {
@@ -107,10 +117,7 @@ public class TransferService extends TransferManagerService {
                         getNotification("Work " + task.getClass().getSimpleName()));
                 task.waitExecution();
                 mLiveThroughput.postValue(getThroughput(startTime));
-                if (tryStop(request)) {
-                    break;
-                }
-            } catch (InterruptedException e) {
+            } catch (TimeoutException | InterruptedException e) {
                 stopSelf();
                 break;
             }
