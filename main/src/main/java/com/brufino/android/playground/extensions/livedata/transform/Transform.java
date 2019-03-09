@@ -1,19 +1,21 @@
 package com.brufino.android.playground.extensions.livedata.transform;
 
+import android.util.Log;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
+import androidx.databinding.Observable;
 import androidx.lifecycle.ComputableLiveData;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.Observer;
+import com.brufino.android.playground.components.main.pages.history.viewmodel.HistoryEntryViewModel;
 import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -61,16 +63,11 @@ public class Transform<T> {
     }
 
     public <U> Transform<U> map(Function<T, U> function, Executor executor) {
-        Executor mainExecutor = getMainThreadExecutor();
         MediatorLiveData<U> result = new MediatorLiveData<>();
-        // TODO(brufino): Do same as ConcurrentSwitchMapObserver with previous future.
         result.addSource(
                 getSource(),
-                value ->
-                        ConcurrencyUtils
-                                .execute(executor, () -> function.apply(value))
-                                .thenAcceptAsync(result::setValue, mainExecutor)
-                                .exceptionally(throwIn(getMainThreadExecutor())));
+                new ConcurrentInOrderObserver<>(
+                        result, (t, u) -> function.apply(t), result::setValue, executor));
         return new Transform<>(result);
     }
 
@@ -86,7 +83,26 @@ public class Transform<T> {
             BiFunction<? super T, ? super U, ? extends LiveData<U>> function,
             Executor executor) {
         MediatorLiveData<U> result = new MediatorLiveData<>();
-        result.addSource(getSource(), new ConcurrentSwitchMapObserver<>(result, function, executor));
+        result.addSource(
+                getSource(),
+                new ConcurrentInOrderObserver<>(
+                        result,
+                        function,
+                        new Consumer<LiveData<U>>() {
+                            @Nullable private LiveData<U> mCurrentSource;
+
+                            @Override
+                            public void accept(@Nullable LiveData<U> liveData) {
+                                if (mCurrentSource != null) {
+                                    result.removeSource(mCurrentSource);
+                                }
+                                mCurrentSource = liveData;
+                                if (mCurrentSource != null) {
+                                    result.addSource(mCurrentSource, result::setValue);
+                                }
+                            }
+                        },
+                        executor));
         return new Transform<>(result);
     }
 
@@ -223,23 +239,36 @@ public class Transform<T> {
         }
     }
 
-    private static class ConcurrentSwitchMapObserver<T, U> implements Observer<T> {
+    /**
+     * An {@link Observer} that executes the provided function in another thread and submits
+     * the result in the main-thread, while preserving their arrival order (in the main-thread).
+     */
+    private static class ConcurrentInOrderObserver<T, U, V> implements Observer<T> {
         private final MediatorLiveData<U> mLiveResult;
-        private final BiFunction<T, ? super U, ? extends LiveData<U>> mFunction;
+        private final BiFunction<T, ? super U, V> mFunction;
         private final Executor mExecutor;
+        private final Consumer<? super V> mConsumer;
         private final Executor mMainExecutor;
-        private LiveData<U> mCurrentSource;
         private CompletableFuture<Void> mPreviousFuture;
 
-        private ConcurrentSwitchMapObserver(
+        /**
+         * Create a ConcurrentInOrderObserver.
+         *
+         * @param liveResult The {@link MediatorLiveData} that will hold the result
+         * @param function Function that's going to be called on one of {@code executor} threads.
+         * @param consumer Consumer that's going to be called on main-thread.
+         * @param executor Executor that provides threads to execute {@code function}.
+         */
+        private ConcurrentInOrderObserver(
                 MediatorLiveData<U> liveResult,
-                BiFunction<T, ? super U, ? extends LiveData<U>> function,
+                BiFunction<T, ? super U, V> function,
+                Consumer<? super V> consumer,
                 Executor executor) {
             mLiveResult = liveResult;
             mFunction = function;
+            mConsumer = consumer;
             mExecutor = executor;
             mMainExecutor = getMainThreadExecutor();
-            mCurrentSource = null;
             mPreviousFuture = CompletableFuture.completedFuture(null);
         }
 
@@ -253,19 +282,8 @@ public class Transform<T> {
                             // Only start after previous to keep execution in order of call.
                             // CompletableFuture won't hold reference to dependents after done.
                             .thenCombineAsync(
-                                    mPreviousFuture, (liveData, empty) -> liveData, mExecutor)
-                            .thenAcceptAsync(
-                                    (@Nullable LiveData<U> liveData) -> {
-                                        if (mCurrentSource != null) {
-                                            mLiveResult.removeSource(mCurrentSource);
-                                        }
-                                        mCurrentSource = liveData;
-                                        if (mCurrentSource != null) {
-                                            mLiveResult.addSource(
-                                                    mCurrentSource, mLiveResult::setValue);
-                                        }
-                                    },
-                                    mMainExecutor)
+                                    mPreviousFuture, (result, empty) -> result, mExecutor)
+                            .thenAcceptAsync(mConsumer, mMainExecutor)
                             .exceptionally(throwIn(getMainThreadExecutor()));
         }
     }
