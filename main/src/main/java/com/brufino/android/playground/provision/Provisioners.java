@@ -17,6 +17,9 @@ import com.brufino.android.playground.components.main.pages.aggregate.AggregateV
 import com.brufino.android.playground.components.main.pages.history.HistoryAdapter;
 import com.brufino.android.playground.components.main.pages.history.HistoryFragmentProvisioner;
 import com.brufino.android.playground.components.main.pages.history.viewmodel.HistoryViewModel;
+import com.brufino.android.playground.components.main.pages.statistics.StatisticsFragment;
+import com.brufino.android.playground.components.main.pages.statistics.StatisticsFragmentProvisioner;
+import com.brufino.android.playground.components.main.pages.statistics.StatisticsViewModel;
 import com.brufino.android.playground.transfer.TransferManagerServiceProvisioner;
 import com.brufino.android.playground.transfer.task.TaskManager;
 import com.brufino.android.playground.transfer.TransferManager;
@@ -139,6 +142,22 @@ public class Provisioners {
             @Override
             public HistoryAdapter getHistoryAdapter() {
                 return mProvisioner.getHistoryAdapter(fragment);
+            }
+        };
+    }
+
+    public StatisticsFragmentProvisioner getStatisticsFragmentProvisioner(Fragment fragment) {
+        return new StatisticsFragmentProvisioner() {
+            @Override
+            public ViewModelProvider.Factory getViewModelFactory() {
+                return mProvisioner.getViewModelFactory(
+                        StatisticsViewModel.class,
+                        () ->
+                                new StatisticsViewModel(
+                                        fragment.getActivity().getApplication(),
+                                        mProvisioner.getTransferManager(
+                                                ApplicationContext.from(fragment)),
+                                        mProvisioner.getWorkExecutor()));
             }
         };
     }

@@ -18,6 +18,7 @@ import androidx.lifecycle.ViewModelProviders;
 import androidx.viewpager.widget.PagerAdapter;
 import com.brufino.android.common.CommonConstants;
 import com.brufino.android.playground.MainConstants;
+import com.brufino.android.playground.components.main.pages.statistics.StatisticsFragment;
 import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.extensions.permission.PermissionRequester;
 import com.brufino.android.playground.provision.Provisioners;
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity
                 FixedFragmentsPagerAdapter.builder(getSupportFragmentManager())
                         .add("History", HistoryFragment::new)
                         .add("Aggregate", AggregateFragment::new)
+                        .add("Statistics", StatisticsFragment::new)
                         .build();
         binding.display.setAdapter(adapter);
     }
