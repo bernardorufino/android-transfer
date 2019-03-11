@@ -46,7 +46,6 @@ public class AggregateFragment extends Fragment {
                 ViewModelProviders.of(this, mViewModelFactory).get(AggregateViewModel.class);
         data.onActivityCreate(getOwnerActivity());
         mBinding.setViewModel(data);
-        mBinding.invalidateAll();
     }
 
     private MainActivity getOwnerActivity() {
