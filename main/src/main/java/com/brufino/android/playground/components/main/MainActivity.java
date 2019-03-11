@@ -73,9 +73,9 @@ public class MainActivity extends AppCompatActivity
         binding.setActions(new Actions());
         PagerAdapter adapter =
                 FixedFragmentsPagerAdapter.builder(getSupportFragmentManager())
-                        .add("History", HistoryFragment::new)
-                        .add("Aggregate", AggregateFragment::new)
-                        .add("Statistics", StatisticsFragment::new)
+                        .add("Log", HistoryFragment::new)
+                        .add("Rank", AggregateFragment::new)
+                        .add("Stats", StatisticsFragment::new)
                         .build();
         binding.display.setAdapter(adapter);
     }
