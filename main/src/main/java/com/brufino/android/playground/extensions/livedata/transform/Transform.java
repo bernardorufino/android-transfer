@@ -1,21 +1,18 @@
 package com.brufino.android.playground.extensions.livedata.transform;
 
-import android.util.Log;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
-import androidx.databinding.Observable;
-import androidx.lifecycle.ComputableLiveData;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.Observer;
-import com.brufino.android.playground.components.main.pages.history.viewmodel.HistoryEntryViewModel;
 import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -162,7 +159,7 @@ public class Transform<T> {
                     mQueue.remove(0);
                 }
                 mQueue.add(t);
-                result.postValue(new CopyOnWriteArrayList<>(mQueue));
+                result.postValue(new ArrayList<>(mQueue));
             }
         });
         return new Transform<>(result);

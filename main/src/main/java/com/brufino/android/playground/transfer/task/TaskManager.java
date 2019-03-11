@@ -4,19 +4,23 @@ import android.content.Context;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.util.Log;
-import androidx.annotation.*;
+import androidx.annotation.GuardedBy;
+import androidx.annotation.MainThread;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
 import com.brufino.android.common.CommonConstants;
+import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.extensions.livedata.transform.Transform;
-import com.brufino.android.playground.transfer.*;
+import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.TransferManager;
 import com.brufino.android.playground.transfer.task.tasks.TaskFactory;
-import com.brufino.android.playground.extensions.ApplicationContext;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
@@ -63,7 +67,7 @@ public class TaskManager {
 
     private List<TaskEntry> getHistory() {
         synchronized (mTaskLock) {
-            return new CopyOnWriteArrayList<>(mHistory);
+            return new ArrayList<>(mHistory);
         }
     }
 

@@ -18,8 +18,12 @@ import com.brufino.android.playground.transfer.TransferRequest;
 import com.brufino.android.playground.transfer.task.TaskManager;
 import com.brufino.android.playground.transfer.task.TransferTask;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.resettingInterrupt;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
@@ -125,7 +129,7 @@ public class TransferService extends TransferManagerService {
     }
 
     private List<TransferRequest> getQueue() {
-        return new CopyOnWriteArrayList<>(mQueue);
+        return new ArrayList<>(mQueue);
     }
 
     private void onQueueChanged() {
