@@ -24,6 +24,8 @@ public class TaskInformation {
 
     public long getTimeElapsed() {
         // TODO(brufino): Use System.nanoTime()
+        // TODO(brufino): Record time the task finished in TransferTask to be more precise and
+        // not pay other costs
         return System.currentTimeMillis() - startTime;
     }
 

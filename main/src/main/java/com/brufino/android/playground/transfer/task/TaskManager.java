@@ -90,6 +90,8 @@ public class TaskManager {
     private void onHistoryChangedLocked() {
         mLiveHistory.invalidate();
         try {
+            // TODO(brufino): When the history has > 200 items this price is huge, we should
+            // improve this. Maybe with appending to the file?
             mTaskHistory.save(mHistory);
         } catch (IOException e) {
             Log.e(CommonConstants.TAG, "Error persisting history", e);
