@@ -131,7 +131,8 @@ public class Provisioners {
                         () ->
                                 new HistoryViewModel(
                                         fragment.getActivity().getApplication(),
-                                        getTransferManager(),
+                                        mProvisioner.getTransferManager(
+                                                ApplicationContext.from(fragment)),
                                         mProvisioner.getWorkExecutor()));
             }
 
