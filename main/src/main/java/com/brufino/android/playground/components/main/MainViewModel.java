@@ -2,6 +2,7 @@ package com.brufino.android.playground.components.main;
 
 import android.app.Application;
 import android.content.Intent;
+import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
 import com.brufino.android.playground.extensions.ViewUtils;
@@ -25,6 +26,7 @@ import static java.util.stream.Collectors.joining;
 public class MainViewModel extends AndroidViewModel {
     private static final String PREFERENCE_CURRENT_TAB = "current_tab";
     private static final int THROUGHPUT_AVERAGE_ELEMENTS = 20;
+    private static final long QUEUE_STATUS_LIMIT = 5;
 
     /** Used for {@link TaskInformation#getTimeElapsed()}} be up-to-date. */
     private static final int UPDATE_INTERVAL_MS = 200;
@@ -109,13 +111,16 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     private String getQueueStatus(List<TransferRequest> queue) {
-        String prefix = String.format(Locale.US, "Queue (%s): ", queue.size());
-        return prefix
-                + queue
+        int size = queue.size();
+        String prefix = String.format(Locale.US, "Queue (%s): ", size);
+        String summary =
+                queue
                         .stream()
+                        .limit(QUEUE_STATUS_LIMIT)
                         .map(request -> codeToString(request.code))
                         .collect(joining(", "));
-
+        String suffix = (size > QUEUE_STATUS_LIMIT) ? "..." : "";
+        return prefix + summary + suffix;
     }
 
     private static String codeToString(@Code int code) {
