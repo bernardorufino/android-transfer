@@ -75,8 +75,7 @@ public class TransferManager {
                 Transform.source(mLiveService.getLiveData())
                         .optional()
                         .castToOptionalOf(TransferService.class, workExecutor)
-                        // TODO(brufino): In workExecutor!
-                        .switchMapIfPresent(TransferService::getLiveQueue)
+                        .switchMapIfPresent(TransferService::getLiveQueue, workExecutor)
                         .orElse(emptyList())
                         .getLiveData();
         mLiveThroughput =

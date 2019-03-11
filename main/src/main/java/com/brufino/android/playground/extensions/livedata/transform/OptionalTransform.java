@@ -33,15 +33,21 @@ public class OptionalTransform<T> extends Transform<Optional<T>> {
 
     public <U> OptionalTransform<U> switchMapIfPresent(
             Function<? super T, LiveData<U>> function) {
+        return switchMapIfPresent(function, getMainThreadExecutor());
+    }
+
+    public <U> OptionalTransform<U> switchMapIfPresent(
+            Function<? super T, LiveData<U>> function, Executor executor) {
         return switchMap(
-                optional ->
-                        optional
-                                .map(
-                                        value ->
-                                                new Transform<>(function.apply(value))
-                                                        .map(Optional::of)
-                                                        .getLiveData())
-                                .orElseGet(() -> constantLiveData(empty())))
+                        optional ->
+                                optional
+                                        .map(
+                                                value ->
+                                                        new Transform<>(function.apply(value))
+                                                                .map(Optional::of)
+                                                                .getLiveData())
+                                        .orElse(constantLiveData(empty())),
+                        executor)
                 .optional();
     }
 
