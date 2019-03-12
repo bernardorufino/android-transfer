@@ -64,7 +64,7 @@ public class TransferService extends TransferManagerService {
     public void onDestroy() {
         super.onDestroy();
         // After super.onDestroy() any requests will result in a new service being spun and there
-        // will be no more direct calls to this object (like clearQueue() for instance), so it's
+        // will be no more direct calls to this object (like clear() for instance), so it's
         // a good time to re-request any left over in the queue (that might have ended up there
         // after the time-out on the service thread).
         for (TransferRequest request : mQueue) {
@@ -82,7 +82,8 @@ public class TransferService extends TransferManagerService {
         return mLiveThroughput;
     }
 
-    public void clearQueue() {
+    @Override
+    public void clear() {
         mQueue.clear();
         onQueueChanged();
     }
@@ -117,8 +118,7 @@ public class TransferService extends TransferManagerService {
                     throw new IllegalStateException("A task was already running", e);
                 }
                 mNotificationManager.notify(
-                        NOTIFICATION_ID,
-                        getNotification("Work " + task.getClass().getSimpleName()));
+                        NOTIFICATION_ID, getNotification("Work " + task.getName()));
                 task.join();
                 mLiveThroughput.postValue(getThroughput(startTime));
             } catch (TimeoutException | InterruptedException e) {

@@ -33,6 +33,8 @@ public abstract class TransferManagerService extends LifecycleService {
     @MainThread
     protected abstract void onStart();
 
+    protected abstract void clear();
+
     /** Call {@code super.onCreate()} after your method body. */
     @Override
     @CallSuper

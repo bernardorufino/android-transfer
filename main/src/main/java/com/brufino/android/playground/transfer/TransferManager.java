@@ -28,20 +28,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Optional.empty;
 
 public class TransferManager {
-    /**
-     * Quick summary. Putting it with 1 maximizes throughput in the beginning, increasing it (to
-     * 5, then 10) hurts throughput in the beginning. Although all throughput values after some
-     * time tend to be relatively the same (needs more investigation, just feeling) and go down.
-     * Maybe something else is playing here (the history size might be delaying some stuff).
-     *
-     * This all mean that the main-thread is being used as a front-line queue, instead of
-     * TransferService queue. We have to put items in the queue directly from TransferManager to
-     * bypass this.
-     */
-    private static final int MAX_THREADS_REQUESTING_TRANSFER = 1;
+    private static final int MAX_THREADS_REQUESTING_TRANSFER = 10;
     private static final int SEMAPHORE_PERMITS = MAX_THREADS_REQUESTING_TRANSFER;
-    private static final int FIRST_START_ID = 0;
-    static final int IDLE_LAST_START_ID = FIRST_START_ID - 1;
 
     private final Context mContext;
     private final TaskManager mTaskManager;
@@ -60,7 +48,7 @@ public class TransferManager {
      * allows multiple threads executing.
      */
     @GuardedBy("mRequestSemaphore")
-    private final AtomicInteger mNextStartId = new AtomicInteger(FIRST_START_ID);
+    private final AtomicInteger mNextStartId = new AtomicInteger(0);
 
     @MainThread
     public TransferManager(
@@ -114,11 +102,9 @@ public class TransferManager {
     public void clearQueue() throws InterruptedException {
         mRequestSemaphore.acquire();
         try {
-            Optional<TransferManagerService> serviceOptional =
-                    checkNotNull(mLiveService.getValue());
-            if (serviceOptional.isPresent()) {
-                TransferService service = (TransferService) serviceOptional.get();
-                service.clearQueue();
+            Optional<TransferManagerService> service = checkNotNull(mLiveService.getValue());
+            if (service.isPresent()) {
+                service.get().clear();
             }
         } finally {
             mRequestSemaphore.release();
@@ -145,11 +131,8 @@ public class TransferManager {
         } finally {
             mRequestSemaphore.release();
         }
-        int startId = mNextStartServiceId.getAndIncrement();
         mContext.startForegroundService(request.getIntent(mContext));
     }
-
-    private final AtomicInteger mNextStartServiceId = new AtomicInteger(0);
 
     @MainThread
     void onServiceCreated(TransferManagerService service) throws InterruptedException {
