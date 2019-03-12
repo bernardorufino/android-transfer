@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
 
+// TODO(brufino): Use CopyOnWriteArrayList instead of simple array list when we are defending
 public class MainActivity extends AppCompatActivity
         implements ActivityCompat.OnRequestPermissionsResultCallback {
     private final MainActivityProvisioner mProvisioner;

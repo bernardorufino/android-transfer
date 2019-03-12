@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
@@ -89,7 +90,7 @@ public class TaskManager {
     @GuardedBy("mTaskLock")
     private void onHistoryChangedLocked() {
         mLiveHistory.invalidate();
-        mTaskHistory.save(mHistory);
+        mTaskHistory.save(new CopyOnWriteArrayList<>(mHistory));
     }
 
     @GuardedBy("mTaskLock")

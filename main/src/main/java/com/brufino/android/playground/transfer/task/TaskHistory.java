@@ -10,6 +10,7 @@ import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
@@ -53,7 +54,10 @@ public class TaskHistory {
         }
     }
 
+    /** The operation doesn't happen inline. */
     void save(List<TaskEntry> tasks) {
+        // Since the operation doesn't happen inline we need to guarantee immutability of the list
+        tasks = new CopyOnWriteArrayList<>(tasks);
         synchronized (mSaveLock) {
             if (mSaving) {
                 mPending = tasks;
