@@ -122,6 +122,6 @@ class Provisioner {
     }
 
     private ServiceClientFactory getServiceClientFactory(ApplicationContext context) {
-        return new ServiceClientFactory(context);
+        return new ServiceClientFactory(context, getWorkExecutor());
     }
 }

@@ -18,6 +18,7 @@ import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.service.ServiceClient;
 
 import java.io.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static com.brufino.android.common.utils.Preconditions.checkState;
@@ -51,20 +52,21 @@ public class SingleThreadTask extends TransferTask {
         ServiceClient<IConsumer> consumerClient =
                 mClientFactory.getServiceClient(mConsumerIntent, IConsumer.Stub::asInterface);
 
-        Stopwatch time1 = startTime("connects");
         try {
-            IProducer producer = producerClient.connect();
-            IConsumer consumer = consumerClient.connect();
-            time1.stop();
-            Stopwatch time2 = startTime("preops");
+            producerClient.connectAsync();
+            consumerClient.connectAsync();
+            IProducer producer = producerClient.get();
+            IConsumer consumer = consumerClient.get();
+
             ParcelFileDescriptor[] producerPipe = ParcelFileDescriptor.createPipe();
             ParcelFileDescriptor[] consumerPipe = ParcelFileDescriptor.createPipe();
-            time2.stop();
 
             configure(producer, consumer);
             transfer(producer, consumer, producerPipe, consumerPipe);
         } catch (RemoteException | IOException e) {
             throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Log.i(CommonConstants.TAG, getName() + " task thread interrupted");
         }
 
         consumerClient.disconnect();

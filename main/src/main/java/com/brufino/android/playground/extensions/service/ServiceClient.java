@@ -6,13 +6,14 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.DeadObjectException;
 import android.os.IBinder;
-import android.util.Log;
 import com.brufino.android.playground.extensions.ApplicationContext;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowing;
 
 // TODO(brufino): I need a new CONNECTING state because of onServiceDisconnected() and
 //                consecutive connects(). Do I??
@@ -21,42 +22,66 @@ import java.util.function.Function;
  * only once and both from the same thread.
  */
 public class ServiceClient<T> {
-    private final Function<IBinder, T> mConverter;
     private final Context mContext;
     private final Intent mServiceIntent;
-    private final CompletableFuture<IBinder> mBinderFuture = new CompletableFuture<>();
-    private final Connection mConnection = new Connection();
+    private final CompletableFuture<IBinder> mBinderFuture;
+    private final CompletableFuture<T> mInterfaceFuture;
+    private final Connection mConnection;
 
     ServiceClient(
-            ApplicationContext context, Intent serviceIntent, Function<IBinder, T> converter) {
+            ApplicationContext context,
+            ExecutorService workExecutor,
+            Intent serviceIntent,
+            Function<IBinder, T> converter) {
         mContext = context.getContext();
         mServiceIntent = serviceIntent;
-        mConverter = converter;
+        mConnection = new Connection();
+        mBinderFuture = new CompletableFuture<>();
+        mInterfaceFuture =
+                mBinderFuture
+                        .thenApplyAsync(
+                                asyncThrowing(ServiceClient::checkBinderNotNull), workExecutor)
+                        .thenApplyAsync(converter, workExecutor);
     }
 
-    public T connect() throws DeadObjectException {
+    public T connect() throws DeadObjectException, InterruptedException {
+        connectAsync();
+        return get();
+    }
+
+    /** Call {@link #get} afterwards. */
+    public CompletableFuture<T> connectAsync() {
         if (mBinderFuture.isDone()) {
-            throw new IllegalStateException("connect() called twice");
+            throw new IllegalStateException("connect() or connectAsync() already called");
         }
         mContext.bindService(mServiceIntent, mConnection, Context.BIND_AUTO_CREATE);
-        final IBinder binder;
-        try {
-            binder = mBinderFuture.get();
-            // long startTime = System.nanoTime();
-            // long midTime = System.nanoTime();
-            // long finalTime = System.nanoTime();
-            // Log.d("BML", "1st = " + TimeUnit.NANOSECONDS.toMillis(midTime - startTime) + " ms");
-            // Log.d("BML", "2nd = " + TimeUnit.NANOSECONDS.toMillis(finalTime - midTime) + " ms");
-        } catch (ExecutionException | InterruptedException e) {
-            throw new DeadObjectException("Cause: " + e.getMessage());
-        }
-        if (binder == null) {
-            throw new DeadObjectException("Null binder");
-        }
-        return mConverter.apply(binder);
+        return mInterfaceFuture;
+
     }
 
-    /** Has to be called from the same thread as {@link #connect()}. */
+    public T get() throws DeadObjectException, InterruptedException {
+        try {
+            return mInterfaceFuture.get();
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof DeadObjectException) {
+                throw (DeadObjectException) cause;
+            }
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private static IBinder checkBinderNotNull(IBinder binder) throws DeadObjectException {
+        if (binder == null) {
+            throw new DeadObjectException("Binder null");
+        }
+        return binder;
+    }
+
+    /** Has to be called from the same thread as {@link #connect()} or {@link #connectAsync()}. */
     public void disconnect() {
         if (!mBinderFuture.isDone()) {
             throw new IllegalStateException("disconnect() called before connect()");

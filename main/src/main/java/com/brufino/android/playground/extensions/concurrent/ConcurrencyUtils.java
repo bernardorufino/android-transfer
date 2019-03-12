@@ -2,6 +2,7 @@ package com.brufino.android.playground.extensions.concurrent;
 
 import android.os.Handler;
 import android.os.Looper;
+import com.brufino.android.playground.extensions.ThrowingFunction;
 import com.brufino.android.playground.extensions.ThrowingRunnable;
 import com.brufino.android.playground.extensions.ThrowingSupplier;
 
@@ -75,6 +76,17 @@ public class ConcurrencyUtils {
         } catch (Exception e) {
             throw getCompletionException(e);
         }
+    }
+
+    public static <I, O> Function<I, O> asyncThrowing(ThrowingFunction<I, O, Exception> function) {
+        return (I input) -> {
+            try {
+                return function.apply(input);
+            } catch (Exception e) {
+                throw getCompletionException(e);
+            }
+        };
+
     }
 
     public static <T> Function<Throwable, T> throwIn(Executor executor) {
