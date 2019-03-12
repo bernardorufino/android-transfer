@@ -55,7 +55,7 @@ public abstract class TransferTask implements LifecycleOwner {
         mConfiguration = configuration;
         mLifecycleRegistry = new LifecycleRegistry(this);
         mLifecycleRegistry.markState(Lifecycle.State.INITIALIZED);
-        mTraceFile = getDocumentPath(getClass().getSimpleName() + ".trace");
+        mTraceFile = getDocumentPath(name + ".trace");
         mLiveTaskInformation = new ImmediateLiveData<>(new HandlerExecutor(mHandler));
     }
 
@@ -115,7 +115,7 @@ public abstract class TransferTask implements LifecycleOwner {
         });
     }
 
-    public void waitExecution() {
+    public void join() {
         mFinished.block();
     }
 

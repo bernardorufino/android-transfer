@@ -119,7 +119,7 @@ public class TransferService extends TransferManagerService {
                 mNotificationManager.notify(
                         NOTIFICATION_ID,
                         getNotification("Work " + task.getClass().getSimpleName()));
-                task.waitExecution();
+                task.join();
                 mLiveThroughput.postValue(getThroughput(startTime));
             } catch (TimeoutException | InterruptedException e) {
                 stopSelf();

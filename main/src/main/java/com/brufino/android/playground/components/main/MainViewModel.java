@@ -75,7 +75,7 @@ public class MainViewModel extends AndroidViewModel {
                         .getLiveData();
         sheetButton =
                 Transform.source(loadingSheet)
-                        .map(loading -> (loading) ? "Loading..." : "Export Sheet", workExecutor)
+                        .map(loading -> loading ? "Loading..." : "Export Sheet", workExecutor)
                         .getLiveData();
     }
 
