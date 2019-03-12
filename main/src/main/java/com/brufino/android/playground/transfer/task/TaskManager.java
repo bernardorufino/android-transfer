@@ -137,7 +137,7 @@ public class TaskManager {
                 mHistory.add(
                         new TaskEntry(
                                 information.name,
-                                information.getTimeElapsed(),
+                                information.getDuration(),
                                 information.inputRead,
                                 information.outputWritten,
                                 information.configuration,

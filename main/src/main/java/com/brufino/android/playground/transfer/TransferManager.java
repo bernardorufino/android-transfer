@@ -23,7 +23,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
-import static com.brufino.android.common.utils.Preconditions.checkState;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.constantLiveDataIfNotNull;
 import static java.util.Collections.emptyList;
 import static java.util.Optional.empty;

@@ -2,7 +2,6 @@ package com.brufino.android.playground.components.main;
 
 import android.app.Application;
 import android.content.Intent;
-import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
 import com.brufino.android.playground.extensions.ViewUtils;
@@ -28,7 +27,7 @@ public class MainViewModel extends AndroidViewModel {
     private static final int THROUGHPUT_AVERAGE_ELEMENTS = 20;
     private static final long QUEUE_STATUS_LIMIT = 5;
 
-    /** Used for {@link TaskInformation#getTimeElapsed()}} be up-to-date. */
+    /** Used for {@link TaskInformation#getDuration()}} be up-to-date. */
     private static final int UPDATE_INTERVAL_MS = 200;
 
     public final LiveData<String> queueStatus;
@@ -154,6 +153,6 @@ public class MainViewModel extends AndroidViewModel {
         TaskInformation taskInformation = taskInformationOptional.get();
         return "Running " + taskInformation.name + " ("
                 + ViewUtils.sizeString(taskInformation.outputWritten, 5) + " / "
-                + taskInformation.getTimeElapsed() + " ms)\n";
+                + taskInformation.getDurationOrTimeElapsed() + " ms)\n";
     }
 }

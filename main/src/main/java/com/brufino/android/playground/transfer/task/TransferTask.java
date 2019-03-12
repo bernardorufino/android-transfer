@@ -59,8 +59,10 @@ public abstract class TransferTask implements LifecycleOwner {
         mLiveTaskInformation = new ImmediateLiveData<>(new HandlerExecutor(mHandler));
     }
 
+    /** When this method is called the task is already in STARTED state. */
     protected abstract void onStart();
 
+    /** When this method is called the task is already in STOPPED/CREATED state. */
     protected void onStop() {}
 
     public String getName() {
@@ -108,8 +110,7 @@ public abstract class TransferTask implements LifecycleOwner {
                 "Task already executed.");
 
         mHandler.post(() -> {
-            mLiveTaskInformation.setValue(
-                    new TaskInformation(mName, System.currentTimeMillis(), 0, 0, mConfiguration));
+            mLiveTaskInformation.setValue(TaskInformation.started(mName, mConfiguration));
             mLifecycleRegistry.markState(Lifecycle.State.STARTED);
             onStart();
         });
@@ -121,9 +122,10 @@ public abstract class TransferTask implements LifecycleOwner {
 
     protected void finishTask() {
         mHandler.post(() -> {
-            onStop();
+            mLiveTaskInformation.updateValue(TaskInformation::setEnded);
             mLifecycleRegistry.markState(Lifecycle.State.CREATED);
             mFinished.open();
+            onStop();
         });
         // Cannot block on mFinished here because this can be called from onStart() and would
         // deadlock
