@@ -1,6 +1,7 @@
 package com.brufino.android.playground.provision;
 
 import android.app.Activity;
+import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ViewModel;
@@ -27,12 +28,26 @@ import static com.brufino.android.common.utils.Preconditions.checkState;
 
 class Provisioner {
     private TransferManager mTransferManager;
+
     private final Object mTaskManagerLock = new Object();
+
+    @GuardedBy("mTaskManagerLock")
     private volatile TaskManager mTaskManager;
+
     private final Object mWorkExecutorLock = new Object();
+
+    @GuardedBy("mWorkExecutorLock")
     private volatile ExecutorService mWorkExecutor;
+
     private final Object mRequestExecutorLock = new Object();
+
+    @GuardedBy("mRequestExecutorLock")
     private volatile ExecutorService mRequestExecutor;
+
+    private final Object mIoExecutorLock = new Object();
+
+    @GuardedBy("mIoExecutorLock")
+    private volatile ExecutorService mIoExecutor;
 
     @MainThread
     TransferManager getTransferManager(ApplicationContext context) {
@@ -71,6 +86,20 @@ class Provisioner {
             }
         }
         return mRequestExecutor;
+    }
+
+    private ExecutorService getIoExecutor() {
+        if (mIoExecutor == null) {
+            synchronized (mIoExecutorLock) {
+                if (mIoExecutor == null) {
+                    // Assuming 80% IO and 4 cores
+                    mIoExecutor =
+                            Executors.newFixedThreadPool(
+                                    20, new AppThreadFactory("io-executor-%d"));
+                }
+            }
+        }
+        return mIoExecutor;
     }
 
     TaskManager getTaskManager(ApplicationContext context) {
@@ -114,7 +143,7 @@ class Provisioner {
     }
 
     private TaskHistory getTaskHistory(ApplicationContext context) {
-        return new TaskHistory(context);
+        return new TaskHistory(context, getIoExecutor(), getWorkExecutor());
     }
 
     private TaskFactory getTaskFactory(ApplicationContext context) {
