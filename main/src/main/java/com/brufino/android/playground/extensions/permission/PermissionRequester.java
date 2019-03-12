@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutionException;
 
 import static com.brufino.android.common.utils.Preconditions.checkState;
 
-// TODO(brufino): Support multiple permission requests
+// Lacking support for multiple permission requests
 public class PermissionRequester {
     private final Activity mActivity;
     private final Object mRequestsLock = new Object();

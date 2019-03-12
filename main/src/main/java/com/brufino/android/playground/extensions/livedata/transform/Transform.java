@@ -43,19 +43,16 @@ public class Transform<T> {
     public Transform<T> mutate(Consumer<T> consumer, Executor executor) {
         Executor mainExecutor = getMainThreadExecutor();
         MediatorLiveData<T> result = new MediatorLiveData<>();
-        // TODO(brufino): Do same as ConcurrentSwitchMapObserver with previous future.
         result.addSource(
                 getSource(),
-                value ->
-                        ConcurrencyUtils
-                                .execute(
-                                        executor,
-                                        () -> {
-                                            consumer.accept(value);
-                                            return value;
-                                        })
-                                .thenAcceptAsync(result::setValue, mainExecutor)
-                                .exceptionally(throwIn(getMainThreadExecutor())));
+                new ConcurrentInOrderObserver<>(
+                        result,
+                        (value, previousResult) -> {
+                            consumer.accept(value);
+                            return value;
+                        },
+                        result::setValue,
+                        executor));
         return new Transform<>(result);
     }
 
@@ -215,7 +212,7 @@ public class Transform<T> {
                 if (mExecutor != null) {
                     T tValue = mTValue;
                     U uValue = mUValue;
-                    // TODO(brufino): Do same as ConcurrentSwitchMapObserver with previous future.
+                    // TODO(brufino): Do same as ConcurrentInOrderObserver with previous future.
                     CompletableFuture
                             .supplyAsync(() -> mFunction.apply(tValue, uValue), mExecutor)
                             .thenAcceptAsync(this::updateValue, mMainExecutor)
