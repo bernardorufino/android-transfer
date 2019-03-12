@@ -28,7 +28,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Optional.empty;
 
 public class TransferManager {
-    private static final int MAX_THREADS_REQUESTING_TRANSFER = 10;
+    private static final int MAX_THREADS_REQUESTING_TRANSFER = 5;
     private static final int SEMAPHORE_PERMITS = MAX_THREADS_REQUESTING_TRANSFER;
 
     private final Context mContext;
