@@ -3,6 +3,8 @@ package com.brufino.android.playground.transfer.task.tasks;
 import android.content.Intent;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.ParcelFileDescriptor.AutoCloseInputStream;
+import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
 import android.os.RemoteException;
 import android.util.Log;
 import com.brufino.android.common.CommonConstants;
@@ -82,15 +84,10 @@ public class SingleThreadTask extends TransferTask {
         consumer.start(consumerPipe[0]);
         consumerPipe[0].close();
 
-        try (ParcelFileDescriptor producerInput = producerPipe[0];
-             ParcelFileDescriptor consumerOutput = consumerPipe[1]) {
-
+        try (DataInputStream input =
+                     new DataInputStream(new AutoCloseInputStream(producerPipe[0]));
+             OutputStream output = new AutoCloseOutputStream(consumerPipe[1])) {
             byte[] buffer = new byte[getBufferSize()];
-            DataInputStream input =
-                    new DataInputStream(new FileInputStream(producerInput.getFileDescriptor()));
-            OutputStream output =
-                    new FileOutputStream(consumerOutput.getFileDescriptor());
-
             transfer(consumer, input, output, buffer);
         }
     }
@@ -100,15 +97,10 @@ public class SingleThreadTask extends TransferTask {
             DataInputStream input,
             OutputStream output,
             byte[] buffer) throws IOException, RemoteException {
+        boolean tracing = startTracing();
         long deadline = System.currentTimeMillis() + PRODUCER_TIME_OUT_MS;
         int chunkSize;
-        boolean timedOut = System.currentTimeMillis() > deadline;
-
-        Stopwatch time1 = startTime("startTracing");
-        boolean tracing = startTracing();
-        time1.stop();
-        Stopwatch time2 = startTime("loop");
-        while ((chunkSize = input.readInt()) > 0 && !timedOut) {
+        while ((chunkSize = input.readInt()) > 0 && System.currentTimeMillis() < deadline) {
             while (chunkSize > 0) {
                 int sizeToRead = (chunkSize > buffer.length) ? buffer.length : chunkSize;
                 checkState(sizeToRead > 0);
@@ -122,14 +114,13 @@ public class SingleThreadTask extends TransferTask {
             }
         }
         consumer.finish();
-        time2.stop();
         stopTracing(tracing);
     }
 
     private void consumerOnDataReceived(IConsumer consumer, int sizeRead) throws RemoteException {
-        Stopwatch time = startTime("onDataReceived");
+        // Stopwatch time = startTime("onDataReceived");
         consumer.onDataReceived(sizeRead);
-        time.stop();
+        // time.stop();
     }
 
     private int read(DataInputStream input, byte[] buffer, int sizeToRead) throws IOException {
