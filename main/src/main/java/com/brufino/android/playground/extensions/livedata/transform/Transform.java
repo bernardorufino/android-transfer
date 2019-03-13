@@ -1,5 +1,6 @@
 package com.brufino.android.playground.extensions.livedata.transform;
 
+import android.util.Pair;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
@@ -244,15 +245,8 @@ public class Transform<T> {
         private final Executor mMapExecutor;
         private final Consumer<? super V> mConsumer;
         private final Executor mMainExecutor;
-        private final Object mLock = new Object();
-
-        @GuardedBy("mLock")
         private CompletableFuture<Void> mPreviousFuture;
-
-        @GuardedBy("mLock")
         private T mPending;
-
-        @GuardedBy("mLock")
         private U mLastU;
 
         /**
@@ -278,31 +272,34 @@ public class Transform<T> {
 
         @Override
         @MainThread
-        public void onChanged(T t) {
-            synchronized (mLock) {
-                mLastU = mLiveResult.getValue();
-                if (mPending != null) {
-                    mPending = t;
-                } else {
-                    mPending = t;
-                    // CompletableFuture won't hold reference to dependents after done.
-                    mPreviousFuture =
-                            mPreviousFuture
-                                    .handleAsync((v, e) -> onMap(), mMapExecutor)
-                                    .thenAcceptAsync(mConsumer, mMainExecutor)
-                                    .exceptionally(throwIn(getMainThreadExecutor()));
-                }
+        public void onChanged(T value) {
+            mLastU = mLiveResult.getValue();
+            if (mPending != null) {
+                mPending = value;
+            } else {
+                mPending = value;
+                // CompletableFuture won't hold reference to dependents after done.
+                mPreviousFuture =
+                        mPreviousFuture
+                                .handleAsync(
+                                        (v, e) -> {
+                                            T t = mPending;
+                                            U u = mLastU;
+                                            mPending = null;
+                                            return new Pair<>(t, u);
+                                        },
+                                        // On the main-thread so that we don't need to synchronize
+                                        mMainExecutor)
+                                .thenApplyAsync(this::onMap, mMapExecutor)
+                                .thenAcceptAsync(mConsumer, mMainExecutor)
+                                .exceptionally(throwIn(mMainExecutor));
             }
+
         }
 
-        private V onMap() {
-            final T t;
-            final U u;
-            synchronized (mLock) {
-                t = mPending;
-                mPending = null;
-                u = mLastU;
-            }
+        private V onMap(Pair<T, U> arguments) {
+            T t = arguments.first;
+            U u = arguments.second;
             return mFunction.apply(t, u);
         }
     }
