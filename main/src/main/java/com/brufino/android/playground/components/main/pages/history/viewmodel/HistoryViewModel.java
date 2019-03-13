@@ -25,7 +25,6 @@ import static java.util.stream.Collectors.toList;
 
 public class HistoryViewModel extends AndroidViewModel {
     public final LiveData<List<HistoryEntryViewModel>> history;
-    public final LiveData<String> summary;
 
     public HistoryViewModel(
             Application application,
@@ -42,10 +41,6 @@ public class HistoryViewModel extends AndroidViewModel {
                                                 .map(this::getHistoryEntryViewModel)
                                                 .collect(toList()),
                                 workExecutor)
-                        .getLiveData();
-        summary =
-                Transform.source(transferManager.getLiveHistory())
-                        .map(history -> history.size() + " tasks", workExecutor)
                         .getLiveData();
     }
 
