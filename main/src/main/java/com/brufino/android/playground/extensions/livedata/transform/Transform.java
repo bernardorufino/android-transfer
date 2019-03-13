@@ -1,11 +1,11 @@
 package com.brufino.android.playground.extensions.livedata.transform;
 
+import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.Observer;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -20,6 +20,7 @@ import java.util.function.Function;
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.*;
+import static java.util.concurrent.CompletableFuture.completedFuture;
 
 public class Transform<T> {
     public static <T> Transform<T> source(LiveData<T> source) {
@@ -44,7 +45,7 @@ public class Transform<T> {
         MediatorLiveData<T> result = new MediatorLiveData<>();
         result.addSource(
                 getSource(),
-                new ConcurrentInOrderObserver<>(
+                new ConcurrentLatestObserver<>(
                         result,
                         (value, previousResult) -> {
                             consumer.accept(value);
@@ -59,7 +60,7 @@ public class Transform<T> {
         MediatorLiveData<U> result = new MediatorLiveData<>();
         result.addSource(
                 getSource(),
-                new ConcurrentInOrderObserver<>(
+                new ConcurrentLatestObserver<>(
                         result, (t, u) -> function.apply(t), result::setValue, executor));
         return new Transform<>(result);
     }
@@ -78,7 +79,7 @@ public class Transform<T> {
         MediatorLiveData<U> result = new MediatorLiveData<>();
         result.addSource(
                 getSource(),
-                new ConcurrentInOrderObserver<>(
+                new ConcurrentLatestObserver<>(
                         result,
                         function,
                         new Consumer<LiveData<U>>() {
@@ -211,7 +212,7 @@ public class Transform<T> {
                 if (mExecutor != null) {
                     T tValue = mTValue;
                     U uValue = mUValue;
-                    // TODO(brufino): Do same as ConcurrentInOrderObserver with previous future.
+                    // TODO(brufino): Do same as ConcurrentLatestObserver with previous future.
                     CompletableFuture
                             .supplyAsync(() -> mFunction.apply(tValue, uValue), mExecutor)
                             .thenAcceptAsync(this::updateValue, mMainExecutor)
@@ -234,50 +235,75 @@ public class Transform<T> {
 
     /**
      * An {@link Observer} that executes the provided function in another thread and submits
-     * the result in the main-thread, while preserving their arrival order (in the main-thread).
+     * the result in the main-thread, if multiple changes happen while the function is executing,
+     * only the latest will be picked-up.
      */
-    private static class ConcurrentInOrderObserver<T, U, V> implements Observer<T> {
+    private static class ConcurrentLatestObserver<T, U, V> implements Observer<T> {
         private final MediatorLiveData<U> mLiveResult;
-        private final BiFunction<T, ? super U, V> mFunction;
-        private final Executor mExecutor;
+        private final BiFunction<? super T, ? super U, V> mFunction;
+        private final Executor mMapExecutor;
         private final Consumer<? super V> mConsumer;
         private final Executor mMainExecutor;
+        private final Object mLock = new Object();
+
+        @GuardedBy("mLock")
         private CompletableFuture<Void> mPreviousFuture;
 
+        @GuardedBy("mLock")
+        private T mPending;
+
+        @GuardedBy("mLock")
+        private U mLastU;
+
         /**
-         * Create a ConcurrentInOrderObserver.
+         * Create a ConcurrentLatestObserver.
          *
          * @param liveResult The {@link MediatorLiveData} that will hold the result
          * @param function Function that's going to be called on one of {@code executor} threads.
          * @param consumer Consumer that's going to be called on main-thread.
          * @param executor Executor that provides threads to execute {@code function}.
          */
-        private ConcurrentInOrderObserver(
+        private ConcurrentLatestObserver(
                 MediatorLiveData<U> liveResult,
-                BiFunction<T, ? super U, V> function,
+                BiFunction<? super T, ? super U, V> function,
                 Consumer<? super V> consumer,
                 Executor executor) {
             mLiveResult = liveResult;
             mFunction = function;
             mConsumer = consumer;
-            mExecutor = executor;
+            mMapExecutor = executor;
             mMainExecutor = getMainThreadExecutor();
-            mPreviousFuture = CompletableFuture.completedFuture(null);
+            mPreviousFuture = completedFuture(null);
         }
 
         @Override
         @MainThread
         public void onChanged(T t) {
-            U u = mLiveResult.getValue();
-            mPreviousFuture =
-                    ConcurrencyUtils
-                            .execute(mExecutor, () -> mFunction.apply(t, u))
-                            // Only start after previous to keep execution in order of call.
-                            // CompletableFuture won't hold reference to dependents after done.
-                            .thenCombineAsync(
-                                    mPreviousFuture, (result, empty) -> result, mExecutor)
-                            .thenAcceptAsync(mConsumer, mMainExecutor)
-                            .exceptionally(throwIn(getMainThreadExecutor()));
+            synchronized (mLock) {
+                mLastU = mLiveResult.getValue();
+                if (mPending != null) {
+                    mPending = t;
+                } else {
+                    mPending = t;
+                    // CompletableFuture won't hold reference to dependents after done.
+                    mPreviousFuture =
+                            mPreviousFuture
+                                    .handleAsync((v, e) -> onMap(), mMapExecutor)
+                                    .thenAcceptAsync(mConsumer, mMainExecutor)
+                                    .exceptionally(throwIn(getMainThreadExecutor()));
+                }
+            }
+        }
+
+        private V onMap() {
+            final T t;
+            final U u;
+            synchronized (mLock) {
+                t = mPending;
+                mPending = null;
+                u = mLastU;
+            }
+            return mFunction.apply(t, u);
         }
     }
 }
