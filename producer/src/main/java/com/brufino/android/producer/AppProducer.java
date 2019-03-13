@@ -10,6 +10,7 @@ import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 
@@ -57,7 +58,7 @@ public class AppProducer extends ProducerService {
         output.write(data);
         output.flush();
         mBytesSent += data.length;
-        Log.d(CommonConstants.TAG, "Sent " + mBytesSent + " bytes");
+        Log.d(TAG, "Sent " + mBytesSent + " bytes");
     }
 
     private void writeString(DataOutputStream output, String string) throws IOException {

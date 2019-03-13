@@ -10,6 +10,7 @@ import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 
 public class AppConsumer extends ConsumerService {
@@ -36,7 +37,7 @@ public class AppConsumer extends ConsumerService {
         checkState(mIntervalMs >= 0);
 
         try {
-            Log.d(CommonConstants.TAG, "Received " + bytes + " (" + mBytesReceived + " total)");
+            Log.d(TAG, "Received " + bytes + " (" + mBytesReceived + " total)");
             byte[] buffer = new byte[mBufferSize];
             while (bytes > 0) {
                 Thread.sleep(mIntervalMs);
@@ -46,7 +47,7 @@ public class AppConsumer extends ConsumerService {
                     throw new EOFException("Unexpected EOF");
                 }
                 mBytesReceived += sizeRead;
-                Log.d(CommonConstants.TAG, "=> Read " + mBytesReceived + " (+" + sizeRead + ")");
+                Log.d(TAG, "=> Read " + mBytesReceived + " (+" + sizeRead + ")");
                 bytes -= sizeRead;
             }
         } catch (IOException | InterruptedException e) {
@@ -58,7 +59,7 @@ public class AppConsumer extends ConsumerService {
     public void finish() {
         try {
             mInputStream.close();
-            Log.d(CommonConstants.TAG, "Closing stream");
+            Log.d(TAG, "Closing stream");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

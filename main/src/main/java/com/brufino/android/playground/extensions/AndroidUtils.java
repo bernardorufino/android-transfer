@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 
 public class AndroidUtils {
@@ -32,7 +33,7 @@ public class AndroidUtils {
     }
 
     public static void logCallback(Activity activity, String callback) {
-        Log.d(CommonConstants.TAG, getDebugCallback(activity, callback));
+        Log.d(TAG, getDebugCallback(activity, callback));
     }
 
     @Nullable

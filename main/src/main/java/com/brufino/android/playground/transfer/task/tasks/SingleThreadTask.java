@@ -21,6 +21,7 @@ import java.io.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 
 public class SingleThreadTask extends TransferTask {
@@ -66,7 +67,7 @@ public class SingleThreadTask extends TransferTask {
         } catch (RemoteException | IOException e) {
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
-            Log.i(CommonConstants.TAG, getName() + " task thread interrupted");
+            Log.i(TAG, getName() + " task thread interrupted");
         }
 
         consumerClient.disconnect();

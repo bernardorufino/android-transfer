@@ -13,6 +13,7 @@ import com.brufino.android.playground.transfer.TransferManager;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowing;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
@@ -62,7 +63,7 @@ public class CommandReceiver extends BroadcastReceiver {
             default:
                 throw new IllegalArgumentException("Can't understand intent " + intent.getAction());
         }
-        Log.d(CommonConstants.TAG, intent + " processed");
+        Log.d(TAG, intent + " processed");
     }
 
     private void startTransfer(

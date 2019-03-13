@@ -14,6 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.*;
 
 public class TaskHistory {
@@ -47,7 +48,7 @@ public class TaskHistory {
         } catch (NoSuchFileException | FileNotFoundException e) {
             return new ArrayList<>();
         } catch (IOException e) {
-            Log.e(CommonConstants.TAG, "IOException while trying to load history", e);
+            Log.e(TAG, "IOException while trying to load history", e);
             return new ArrayList<>();
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
@@ -74,7 +75,7 @@ public class TaskHistory {
                 .exceptionally(
                         catching(
                                 IOException.class,
-                                e -> Log.e(CommonConstants.TAG, "Error persisting history", e)))
+                                e -> Log.e(TAG, "Error persisting history", e)))
                 .exceptionally(throwIn(getMainThreadExecutor()));
 
     }

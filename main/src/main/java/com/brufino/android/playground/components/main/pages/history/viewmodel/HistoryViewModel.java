@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static java.util.stream.Collectors.toList;
 
 public class HistoryViewModel extends AndroidViewModel {
@@ -54,7 +55,7 @@ public class HistoryViewModel extends AndroidViewModel {
         boolean sizesDiffer = task.inputRead != task.outputWritten;
         if (sizesDiffer) {
             Log.e(
-                    CommonConstants.TAG,
+                    TAG,
                     String.format(
                             "Task %s input read = %s but output written = %s",
                             task.name,

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
 
@@ -110,7 +111,7 @@ public class TaskManager {
             TransferTask task = mTaskFactory.getTask(code, configuration, mLooper);
             Lifecycle taskLifecycle = task.getLifecycle();
             taskLifecycle.addObserver(new TaskObserver());
-            Log.d(CommonConstants.TAG, "Triggering task " + task.getName() + " with " + configuration);
+            Log.d(TAG, "Triggering task " + task.getName() + " with " + configuration);
             task.trigger();
             setTaskLocked(task);
             return task;

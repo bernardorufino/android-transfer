@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 
 public class TableAdapters {
@@ -72,7 +73,7 @@ public class TableAdapters {
                     table, newContent, newLayout, newOnClick, newOnLongClick);
         } finally {
             long timeMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-            Log.d(CommonConstants.TAG, "table = " + timeMs + " ms " + "(" + action + ")");
+            Log.d(TAG, "table = " + timeMs + " ms " + "(" + action + ")");
         }
     }
 

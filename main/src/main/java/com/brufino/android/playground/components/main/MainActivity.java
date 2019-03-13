@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
+import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
 
 // TODO(brufino): Use CopyOnWriteArrayList instead of simple array list when we are defending
@@ -96,10 +97,10 @@ public class MainActivity extends AppCompatActivity
             Intent intent = future.get();
             startActivity(intent);
         } catch (ExecutionException | InterruptedException e) {
-            Log.e(CommonConstants.TAG, "Export sheet failed", e);
+            Log.e(TAG, "Export sheet failed", e);
             Toast.makeText(this, "Export sheet failed", Toast.LENGTH_SHORT).show();
         } catch (ActivityNotFoundException e) {
-            Log.e(CommonConstants.TAG, "Export sheet failed", e);
+            Log.e(TAG, "Export sheet failed", e);
             Toast.makeText(this, "No apps to open csv", Toast.LENGTH_SHORT).show();
         }
     }
@@ -107,7 +108,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
         super.onSaveInstanceState(outState, outPersistentState);
-        Log.d(CommonConstants.TAG, "MainActivity.onSaveInstanceState()");
+        Log.d(TAG, "MainActivity.onSaveInstanceState()");
     }
 
     public class Actions {
