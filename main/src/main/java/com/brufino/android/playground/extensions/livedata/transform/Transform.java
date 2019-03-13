@@ -41,7 +41,6 @@ public class Transform<T> {
     }
 
     public Transform<T> mutate(Consumer<T> consumer, Executor executor) {
-        Executor mainExecutor = getMainThreadExecutor();
         MediatorLiveData<T> result = new MediatorLiveData<>();
         result.addSource(
                 getSource(),

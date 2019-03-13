@@ -134,14 +134,13 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     private String getServiceStatus(double averageThroughput, double throughput) {
-        return
-                String.format(
-                        Locale.US,
-                        "Throughput: %.0f tasks/minute\n"
-                            + "Last %d avg: %.0f tasks/minute",
-                        throughput,
-                        THROUGHPUT_AVERAGE_ELEMENTS,
-                        averageThroughput);
+        return String.format(
+                Locale.US,
+                "Throughput: %.0f tasks/minute\n"
+                    + "Last %d avg: %.0f tasks/minute",
+                throughput,
+                THROUGHPUT_AVERAGE_ELEMENTS,
+                averageThroughput);
     }
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
