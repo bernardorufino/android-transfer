@@ -3,19 +3,21 @@ package com.brufino.android.playground.transfer.task;
 import android.content.Context;
 import android.util.Log;
 import androidx.annotation.GuardedBy;
-import com.brufino.android.common.CommonConstants;
 import com.brufino.android.playground.extensions.ApplicationContext;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static com.brufino.android.common.CommonConstants.TAG;
+import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.*;
+import static java.util.concurrent.CompletableFuture.completedFuture;
 
 public class TaskHistory {
     private static final String HISTORY_FILE_NAME = "history.txt";
@@ -26,10 +28,10 @@ public class TaskHistory {
     private final Object mSaveLock = new Object();
 
     @GuardedBy("mSaveLock")
-    private List<TaskEntry> mPending;
+    private CompletableFuture<Void> mSaveFuture;
 
     @GuardedBy("mSaveLock")
-    private boolean mSaving;
+    private List<TaskEntry> mPending;
 
     public TaskHistory(
             ApplicationContext context,
@@ -38,6 +40,7 @@ public class TaskHistory {
         mContext = context.getContext();
         mIoExecutor = ioExecutor;
         mWorkExecutor = workExecutor;
+        mSaveFuture = completedFuture(null);
     }
 
     @SuppressWarnings("unchecked")
@@ -60,43 +63,30 @@ public class TaskHistory {
         // Since the operation doesn't happen inline we need to guarantee immutability of the list
         tasks = new CopyOnWriteArrayList<>(tasks);
         synchronized (mSaveLock) {
-            if (mSaving) {
+            if (mPending != null) {
                 mPending = tasks;
             } else {
-                mSaving = true;
-                triggerSaveLocked(tasks);
+                mPending = tasks;
+                mSaveFuture =
+                        mSaveFuture
+                                .whenCompleteAsync((v, e) -> onSave(), mIoExecutor)
+                                .exceptionally(throwIn(getMainThreadExecutor()));
             }
         }
     }
 
-    @GuardedBy("mSaveLock")
-    private void triggerSaveLocked(List<TaskEntry> tasks) {
-        execute(mIoExecutor, () -> onSave(tasks))
-                .exceptionally(
-                        catching(
-                                IOException.class,
-                                e -> Log.e(TAG, "Error persisting history", e)))
-                .exceptionally(throwIn(getMainThreadExecutor()));
-
-    }
-
-    private void onSave(List<TaskEntry> tasks) throws IOException {
+    private void onSave() {
+        final List<TaskEntry> tasks;
+        synchronized (mSaveLock) {
+            tasks = checkNotNull(mPending);
+            mPending = null;
+        }
         try (ObjectOutputStream output =
                      new ObjectOutputStream(new FileOutputStream(getFile(mContext)))) {
             output.writeObject(tasks);
-        } finally {
-            onSaveFinished();
-        }
-    }
-
-    private void onSaveFinished() {
-        synchronized (mSaveLock) {
-            if (mPending == null) {
-                mSaving = false;
-            } else {
-                triggerSaveLocked(mPending);
-                mPending = null;
-            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error persisting history", e);
+            // Can't do anything :(
         }
     }
 

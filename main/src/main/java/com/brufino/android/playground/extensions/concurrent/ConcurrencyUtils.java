@@ -88,7 +88,6 @@ public class ConcurrencyUtils {
                 throw getCompletionException(e);
             }
         };
-
     }
 
     public static <T> Function<Throwable, T> throwIn(Executor executor) {
