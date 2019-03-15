@@ -58,23 +58,25 @@ public class AggregateViewModel extends AndroidViewModel {
 
     private String[][] getTable(List<TaskEntry> history, int mask) {
         return Stream.of(
-                Stream.<String[]>of(HEADER),
-                TaskStatisticsUtils.computeTimesByParameters(history)
-                        .entrySet()
-                        .stream()
-                        .map(entry -> {
-                            Parameters parameters = entry.getKey();
-                            return new String[] {
-                                    parameters.taskName.substring(0, 1),
-                                    sizeString(parameters.producerDataSize),
-                                    String.format(Locale.US, "%d", parameters.producerInterval),
-                                    sizeString(parameters.producerChunkSize),
-                                    sizeString(parameters.transferBufferSize),
-                                    String.format(Locale.US, "%d", parameters.consumerInterval),
-                                    sizeString(parameters.consumerBufferSize),
-                                    String.format(Locale.US, "%.0f", entry.getValue())
-                            };
-                        }))
+                        Stream.<String[]>of(HEADER),
+                        TaskStatisticsUtils.computeTimesByParameters(history)
+                                .entrySet()
+                                .stream()
+                                .map(entry -> {
+                                    Parameters parameters = entry.getKey();
+                                    return new String[] {
+                                            parameters.taskName.substring(0, 1),
+                                            sizeString(parameters.producerDataSize),
+                                            String.format(Locale.US, "%d",
+                                                    parameters.producerInterval),
+                                            sizeString(parameters.producerChunkSize),
+                                            sizeString(parameters.transferBufferSize),
+                                            String.format(Locale.US, "%d",
+                                                    parameters.consumerInterval),
+                                            sizeString(parameters.consumerBufferSize),
+                                            String.format(Locale.US, "%.0f", entry.getValue())
+                                    };
+                                }))
                 .flatMap(identity())
                 .map(row -> applyColumnMask(mask, row))
                 .toArray(String[][]::new);

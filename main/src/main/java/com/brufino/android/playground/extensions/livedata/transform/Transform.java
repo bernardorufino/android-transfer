@@ -43,6 +43,7 @@ public class Transform<T> {
         return getSource();
     }
 
+    /** Warning: This will mutate the original data! Make sure you copy it first. */
     public Transform<T> mutate(Consumer<T> consumer, Executor executor) {
         MediatorLiveData<T> result = new MediatorLiveData<>();
         result.addSource(

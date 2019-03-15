@@ -18,7 +18,9 @@ import com.brufino.android.playground.extensions.ViewUtils;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 
 import static com.brufino.android.common.CommonConstants.TAG;
 import static java.util.stream.Collectors.toList;
@@ -33,6 +35,7 @@ public class HistoryViewModel extends AndroidViewModel {
         super(application);
         history =
                 Transform.source(transferManager.getLiveHistory())
+                        .map(CopyOnWriteArrayList::new)
                         .mutate(Collections::reverse, workExecutor)
                         .map(
                                 history ->
