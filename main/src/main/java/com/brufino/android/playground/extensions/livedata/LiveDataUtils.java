@@ -7,13 +7,11 @@ import androidx.annotation.Nullable;
 import androidx.lifecycle.ComputableLiveData;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.Transformations;
 import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.postOnMainThread;
@@ -26,47 +24,7 @@ import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUt
  * called). If a Boolean operation receives an uninitialized LiveData as either of its parameters,
  * the result will also be in an uninitialized state.
  */
-// TODO(brufino): Do it myself :P
 public class LiveDataUtils {
-    private static volatile LiveData<?> nullLiveData;
-    private static volatile LiveData<Boolean> trueLiveData;
-    private static volatile LiveData<Boolean> falseLiveData;
-
-    /**
-     * Returns a LiveData that always emits {@code null}. This is different than an uninitialized
-     * LiveData in that observers will be called (with {@code null}) when registered.
-     */
-    public static <T> LiveData<T> nullLiveData() {
-        if (nullLiveData == null) {
-            MutableLiveData<?> nullData = new MutableLiveData<>();
-            nullData.setValue(null);
-            nullLiveData = nullData;
-        }
-        // null can fit any generic type
-        // noinspection unchecked
-        return (LiveData<T>) nullLiveData;
-    }
-
-    /** Returns a LiveData that always emits {@code true}. */
-    public static LiveData<Boolean> trueLiveData() {
-        if (trueLiveData == null) {
-            MutableLiveData<Boolean> trueData = new MutableLiveData<>();
-            trueData.setValue(true);
-            trueLiveData = trueData;
-        }
-        return trueLiveData;
-    }
-
-    /** Returns a LiveData that always emits {@code false}. */
-    public static LiveData<Boolean> falseLiveData() {
-        if (falseLiveData == null) {
-            MutableLiveData<Boolean> falseData = new MutableLiveData<>();
-            falseData.setValue(false);
-            falseLiveData = falseData;
-        }
-        return falseLiveData;
-    }
-
     /** Returns a LiveData that always emits {@code value}. */
     public static <T> LiveData<T> constantLiveData(@Nullable T value) {
         MutableLiveData<T> liveData = new MutableLiveData<>();
@@ -81,31 +39,6 @@ public class LiveDataUtils {
             setValue(liveData, value);
         }
         return liveData;
-    }
-
-    /**
-     * Returns a LiveData that is backed by {@code trueData} when the trigger satisfies the predicate,
-     * {@code falseData} when the trigger does not satisfy the predicate, and emits {@code null} when
-     * the trigger emits {@code null}.
-     *
-     * @param trueData the LiveData whose value should be emitted when predicate returns {@code true}
-     * @param falseData the LiveData whose value should be emitted when predicate returns {@code
-     *     false}
-     */
-    public static <P, T> LiveData<T> ifThenElse(
-            LiveData<P> trigger,
-            Predicate<? super P> predicate,
-            LiveData<T> trueData,
-            LiveData<T> falseData) {
-        return Transformations.switchMap(
-                trigger,
-                t -> {
-                    if (t == null) {
-                        return nullLiveData();
-                    } else {
-                        return predicate.test(t) ? trueData : falseData;
-                    }
-                });
     }
 
     public static <T> ComputableLiveData<T> computableLiveData(Supplier<T> function) {
@@ -183,5 +116,4 @@ public class LiveDataUtils {
     }
 
     private LiveDataUtils() {}
-
 }

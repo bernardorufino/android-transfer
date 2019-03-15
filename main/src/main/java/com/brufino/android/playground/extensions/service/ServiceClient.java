@@ -97,7 +97,7 @@ public class ServiceClient<T> {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            // TODO(brufino)
+            // Binder object will throw DOE
         }
     }
 }
