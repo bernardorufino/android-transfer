@@ -9,6 +9,8 @@ consumer_interval=$6
 consumer_buffer=$7
 repeat=${8-1}
 
+# C + max(Pd / Pc * Pi, Pd / min(Pc, Tb) * max(1, min(Pc, Tb) / Cb) * Ci)
+
 echo "Submitted $repeat $task $producer_data $producer_interval $producer_chunk $transfer_buffer $consumer_interval $consumer_buffer"
 # We explicitly set stdin to /dev/null because otherwise it captures stdin from start_tasks.sh
 adb shell am broadcast \
