@@ -7,10 +7,10 @@ import android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
 import android.os.RemoteException;
 import android.util.Log;
-import com.brufino.android.common.CommonConstants;
 import com.brufino.android.common.IConsumer;
 import com.brufino.android.common.IProducer;
 import com.brufino.android.common.PlaygroundUtils;
+import com.brufino.android.playground.MainConstants;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.task.TransferTask;
@@ -18,8 +18,6 @@ import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.service.ServiceClient;
 
 import java.io.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkState;
@@ -135,6 +133,10 @@ public class SingleThreadTask extends TransferTask {
     }
 
     private void write(OutputStream output, byte[] buffer, int sizeToWrite) throws IOException {
+        // This is because the pipe would be stuck waiting for consumer to consumer the data and
+        // we won't have a chance to call onDataReceived() to signal the consumer that the data
+        // has been sent.
+        checkState(sizeToWrite <= MainConstants.PIPE_SIZE, "Can't write to pipe > 64 KB");
         // Stopwatch time = startTime("write");
         output.write(buffer, 0, sizeToWrite);
         outputWritten(sizeToWrite);
