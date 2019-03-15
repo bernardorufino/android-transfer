@@ -1,7 +1,6 @@
 package com.brufino.android.playground.extensions.livedata.transform;
 
 import android.util.Pair;
-import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
@@ -20,9 +19,11 @@ import java.util.function.Function;
 
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
+import static com.brufino.android.common.utils.Preconditions.checkState;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.*;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
+/** These transformations are only interested in the latest value, not values in between. */
 public class Transform<T> {
     public static <T> Transform<T> source(LiveData<T> source) {
         return new Transform<>(source);
@@ -130,7 +131,7 @@ public class Transform<T> {
             LiveData<U> other,
             BiFunction<? super T, ? super U, ? extends R> function) {
         CombineLiveData<T, U, R> result =
-                new CombineLiveData<>(getSource(), other, function);
+                new CombineLiveData<>(getSource(), other, function, getMainThreadExecutor());
         return new Transform<>(result);
     }
 
@@ -165,64 +166,68 @@ public class Transform<T> {
 
     private static class CombineLiveData<T, U, R> extends MediatorLiveData<R> {
         private final BiFunction<? super T, ? super U, ? extends R> mFunction;
-        @Nullable
-        private final Executor mExecutor;
+        private final Executor mCombineExecutor;
         private final Executor mMainExecutor;
 
         private boolean mTSet;
         private boolean mUSet;
         private boolean mValueSet;
+        private CompletableFuture<Void> mPreviousFuture;
+        private Pair<T, U> mPending;
 
-        private @Nullable T mTValue;
-        private @Nullable U mUValue;
-
-        private CombineLiveData(
-                LiveData<T> tLiveData,
-                LiveData<U> uLiveData,
-                BiFunction<? super T, ? super U, ? extends R> merge) {
-            this(tLiveData, uLiveData, merge, null);
-        }
+        private @Nullable T mLastT;
+        private @Nullable U mLastU;
 
         private CombineLiveData(
-                LiveData<T> tLiveData,
-                LiveData<U> uLiveData,
+                LiveData<T> liveT,
+                LiveData<U> liveU,
                 BiFunction<? super T, ? super U, ? extends R> merge,
                 @Nullable Executor executor) {
-            checkArgument(tLiveData != uLiveData);
+            checkArgument(liveT != liveU);
             mFunction = merge;
-            mExecutor = executor;
+            mCombineExecutor = executor;
             mMainExecutor = getMainThreadExecutor();
-            addSource(checkNotNull(tLiveData), this::updateT);
-            addSource(checkNotNull(uLiveData), this::updateU);
+            mPreviousFuture = completedFuture(null);
+            addSource(liveT, this::updateT);
+            addSource(liveU, this::updateU);
         }
 
-        private void updateT(@Nullable T tValue) {
+        @MainThread
+        private void updateT(@Nullable T t) {
             mTSet = true;
-            mTValue = tValue;
+            mLastT = t;
             update();
         }
 
-        private void updateU(@Nullable U uValue) {
+        @MainThread
+        private void updateU(@Nullable U u) {
             mUSet = true;
-            mUValue = uValue;
+            mLastU = u;
             update();
         }
 
+        @MainThread
         private void update() {
-            if (mTSet && mUSet) {
-                if (mExecutor != null) {
-                    T tValue = mTValue;
-                    U uValue = mUValue;
-                    // TODO(brufino): Do same as ConcurrentLatestObserver with previous future.
-                    CompletableFuture
-                            .supplyAsync(() -> mFunction.apply(tValue, uValue), mExecutor)
-                            .thenAcceptAsync(this::updateValue, mMainExecutor)
-                            .exceptionally(throwIn(getMainThreadExecutor()));
-
-                } else {
-                    updateValue(mFunction.apply(mTValue, mUValue));
-                }
-
+            checkState(isMainThread());
+            if (!mTSet || !mUSet) {
+                return;
+            }
+            if (mPending != null) {
+                mPending = new Pair<>(mLastT, mLastU);
+            } else {
+                mPending = new Pair<>(mLastT, mLastU);
+                mPreviousFuture
+                        .handleAsync(
+                                (v, e) -> {
+                                    Pair<T, U> pending = mPending;
+                                    mPending = null;
+                                    return pending;
+                                },
+                                mMainExecutor)
+                        .thenApplyAsync(
+                                pair -> mFunction.apply(pair.first, pair.second), mCombineExecutor)
+                        .thenAcceptAsync(this::updateValue, mMainExecutor)
+                        .exceptionally(throwIn(mMainExecutor));
             }
         }
 
@@ -237,7 +242,7 @@ public class Transform<T> {
     /**
      * An {@link Observer} that executes the provided function in another thread and submits
      * the result in the main-thread, if multiple changes happen while the function is executing,
-     * only the latest will be picked-up.
+     * only the latest will be picked-up. It doesn't support {@code null} values.
      */
     private static class ConcurrentLatestObserver<T, U, V> implements Observer<T> {
         private final MediatorLiveData<U> mLiveResult;
