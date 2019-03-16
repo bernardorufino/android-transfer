@@ -16,7 +16,7 @@ do
             com.brufino\.android.playground \
             < /dev/null \
             > /dev/null
-    else
-        $DIR/start_task.sh $line
+    elif [[ ! "$line" == \#* && ! -z "$line" ]]; then
+        ${DIR}/start_task.sh ${line}
     fi
 done < $1
