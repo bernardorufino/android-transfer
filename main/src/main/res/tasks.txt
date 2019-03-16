@@ -1,30 +1,29 @@
-single 128 100 64 128 5 128 30
-single 128 100 64 128 25 128 30
-single 128 100 64 128 50 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 150 128 30
-single 128 100 64 128 250 128 30
-single 128 100 64 128 500 128 30
-single 128 100 64 64 5 128 30
-single 128 100 64 64 25 128 30
-single 128 100 64 64 50 128 30
-single 128 100 64 64 100 128 30
-single 128 100 64 64 150 128 30
-single 128 100 64 64 250 128 30
-single 128 100 64 64 500 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
-single 128 100 64 128 100 128 30
+# T = task (single, multi)
+# Pd = producer_data (in KB)
+# Pi = producer_interval (in ms)
+# Pc = producer_chunk (in KB)
+# Tb = transfer_buffer (in KB)
+# Ci = consumer_interval (in ms)
+# Cb = consumer_buffer in (in KB)
+# R = repeat
+#
+# Precondition: min(Pc, Tb) <= 64 KB (see check in SingleThreadTask)
+#
+# Commands: T Pd Pi Pc Tb Ci Cb R => Trigger a task via broadcast
+#           clear => Clear history
+#
+# Task duration estimate =
+#         K1 +
+#             max(
+#                 K2 + Pd / Pc * Pi,
+#                 K3 + Pd / min(Pc, Tb, Cb) * Ci)
+#
+# PS1: K3 + Pd / min(Cb, min(Pc, Tb)) * Ci) =
+#         K3 + Pd / min(Pc, Tb) * max(1, min(Pc, Tb) / Cb) * Ci)
+# PS2: K ~= 150 ms
+
+clear
+# T    Pd  Pi  Pc Tb Ci  Cb  R
+single 128 300 64 32 100 128 30
+single 128 100 64 32 100 128 20
+single 128 100 64 32 100 16 20
