@@ -22,8 +22,6 @@ public class HistoryHeaderViewModel extends HistoryItemViewModel {
         return totalTasks
                 + " tasks ("
                 + successfulTasks
-                + " S / "
-                + failedTasks
-                + " F)";
+                + " succeeded)";
     }
 }
