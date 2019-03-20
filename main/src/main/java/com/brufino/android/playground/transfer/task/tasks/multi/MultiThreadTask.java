@@ -2,9 +2,6 @@ package com.brufino.android.playground.transfer.task.tasks.multi;
 
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
-import com.brufino.android.playground.extensions.ThrowingRunnable;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
-import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.task.TaskController;
 import com.brufino.android.playground.transfer.task.TransferTask;
@@ -15,20 +12,16 @@ import com.brufino.android.playground.transfer.task.tasks.multi.subtasks.Consume
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
-import static android.os.Looper.myLooper;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
-import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.getMainThreadExecutor;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.throwIn;
 
 public class MultiThreadTask extends TransferTask {
     private final MultiSubTaskFactory mSubTaskFactory;
     private final TaskController mController;
-    private final ExecutorService mReaderExecutor;
-    private final ExecutorService mWriterExecutor;
+    private final ExecutorService mTaskExecutor;
     private ProducerReaderSubTask mReaderTask;
     private ConsumerWriterSubTask mWriterTask;
 
@@ -37,12 +30,10 @@ public class MultiThreadTask extends TransferTask {
             MultiSubTaskFactory subTaskFactory,
             Looper looper,
             TransferConfiguration configuration,
-            ExecutorService taskReaderExecutor,
-            ExecutorService taskWriterExecutor) {
+            ExecutorService taskExecutor) {
         super(context, looper, configuration, "Multi");
         mSubTaskFactory = subTaskFactory;
-        mReaderExecutor = taskReaderExecutor;
-        mWriterExecutor = taskWriterExecutor;
+        mTaskExecutor = taskExecutor;
         mController = getController();
     }
 
@@ -59,8 +50,8 @@ public class MultiThreadTask extends TransferTask {
         mWriterTask = mSubTaskFactory.getWriterSubTask(mController, pipe[0]);
 
         CompletableFuture.allOf(
-                        execute(mReaderExecutor, mReaderTask),
-                        execute(mWriterExecutor, mWriterTask))
+                        execute(mTaskExecutor, mReaderTask),
+                        execute(mTaskExecutor, mWriterTask))
                 .thenAcceptAsync(v -> finishTask(), getExecutor())
                 .exceptionally(throwIn(getExecutor()));
     }

@@ -34,7 +34,7 @@ class Provisioner {
     private final Object mRequestExecutorLock = new Object();
     private final Object mIoExecutorLock = new Object();
     private final Object mTaskReaderExecutorLock = new Object();
-    private final Object mTaskWriterExecutorLock = new Object();
+    private final Object mTaskExecutorLock = new Object();
     private TransferManager mTransferManager;
 
     @GuardedBy("mTaskManagerLock")
@@ -57,9 +57,9 @@ class Provisioner {
     @Nullable
     private volatile ExecutorService mTaskReaderExecutor;
 
-    @GuardedBy("mTaskWriterExecutorLock")
+    @GuardedBy("mTaskExecutorLock")
     @Nullable
-    private volatile ExecutorService mTaskWriterExecutor;
+    private volatile ExecutorService mTaskExecutor;
 
     @MainThread
     TransferManager getTransferManager(ApplicationContext context) {
@@ -114,32 +114,16 @@ class Provisioner {
         return mIoExecutor;
     }
 
-    private ExecutorService getTaskReaderExecutor() {
-        if (mTaskReaderExecutor == null) {
-            synchronized (mTaskReaderExecutorLock) {
-                if (mTaskReaderExecutor == null) {
-                    mTaskReaderExecutor =
-                            Executors
-                                    .newSingleThreadExecutor(
-                                            getThreadFactory("multi-task-reader"));
-                }
-            }
-
-        }
-        return mTaskReaderExecutor;
-    }
-
-    private ExecutorService getTaskWriterExecutor() {
-        if (mTaskWriterExecutor == null) {
-            synchronized (mTaskWriterExecutorLock) {
-                if (mTaskWriterExecutor == null) {
-                    mTaskWriterExecutor =
-                            Executors
-                                    .newSingleThreadExecutor(getThreadFactory("multi-task-writer"));
+    /** Guaranteed to have at least 2 threads. */
+    private ExecutorService getTaskExecutor() {
+        if (mTaskExecutor == null) {
+            synchronized (mTaskExecutorLock) {
+                if (mTaskExecutor == null) {
+                    mTaskExecutor = Executors.newFixedThreadPool(2, getThreadFactory("task-%d"));
                 }
             }
         }
-        return mTaskWriterExecutor;
+        return mTaskExecutor;
     }
 
     private AppThreadFactory getThreadFactory(String nameFormat) {
@@ -199,8 +183,7 @@ class Provisioner {
                 context,
                 getServiceClientFactory(context),
                 getMultiSubTaskFactory(context),
-                getTaskReaderExecutor(),
-                getTaskWriterExecutor());
+                getTaskExecutor());
     }
 
     private ServiceClientFactory getServiceClientFactory(ApplicationContext context) {
