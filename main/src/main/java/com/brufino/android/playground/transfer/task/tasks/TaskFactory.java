@@ -35,14 +35,11 @@ public class TaskFactory {
             Looper looper) {
         switch (code) {
             case TransferManager.Code.SINGLE_THREAD:
-                return new SingleThreadTask(mContext, mClientFactory, looper, configuration);
+                return new SingleThreadTask(
+                        mContext, mClientFactory, looper, configuration, mTaskExecutor);
             case TransferManager.Code.MULTI_THREAD:
                 return new MultiThreadTask(
-                        mContext,
-                        mMultiSubTaskFactory,
-                        looper,
-                        configuration,
-                        mTaskExecutor);
+                        mContext, mMultiSubTaskFactory, looper, configuration, mTaskExecutor);
             default:
                 throw new IllegalArgumentException("Unknown task code " + code);
         }

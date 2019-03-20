@@ -9,6 +9,7 @@ import android.os.RemoteException;
 import com.brufino.android.common.IConsumer;
 import com.brufino.android.common.IProducer;
 import com.brufino.android.common.TransferUtils;
+import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.task.TaskController;
@@ -17,10 +18,12 @@ import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.service.ServiceClient;
 
 import java.io.*;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.common.utils.Preconditions.checkState;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
 import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.readFromProducer;
 import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.sendDataReceivedToConsumer;
 import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.writeToConsumer;
@@ -31,37 +34,27 @@ public class SingleThreadTask extends TransferTask {
     private final Intent mConsumerIntent;
     private final ServiceClientFactory mClientFactory;
     private final TaskController mController;
-    // TODO(brufino): Inject taskExecutor and use it instead of spinning a new thread here 
-    private Thread mThread;
+    private final ExecutorService mTaskExecutor;
 
     public SingleThreadTask(
             ApplicationContext context,
             ServiceClientFactory serviceClientFactory,
             Looper looper,
-            TransferConfiguration configuration) {
+            TransferConfiguration configuration,
+            ExecutorService taskExecutor) {
         super(context, looper, configuration, "Single");
         mClientFactory = serviceClientFactory;
         mProducerIntent =
                 TransferUtils.getProducerIntent(TransferTask.PRODUCER_PACKAGE);
         mConsumerIntent =
                 TransferUtils.getConsumerIntent(TransferTask.CONSUMER_PACKAGE);
+        mTaskExecutor = taskExecutor;
         mController = getController();
     }
 
     @Override
     protected void onStart() {
-        mThread = new Thread(this::runTask, "single-task");
-        mThread.start();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        try {
-            mThread.join();
-        } catch (InterruptedException e) {
-            checkNotNull(Looper.myLooper()).quitSafely();
-        }
+        execute(mTaskExecutor, this::runTask);
     }
 
     private void runTask() {
