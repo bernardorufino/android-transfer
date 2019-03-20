@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Stream;
 
 import static com.brufino.android.common.CommonConstants.TAG_TASK;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
@@ -27,7 +28,7 @@ import static com.brufino.android.playground.extensions.ViewUtils.sizeString;
 import static java.util.stream.Collectors.toList;
 
 public class HistoryViewModel extends AndroidViewModel {
-    public final LiveData<List<HistoryEntryViewModel>> history;
+    public final LiveData<List<HistoryItemViewModel>> history;
 
     public HistoryViewModel(
             Application application,
@@ -38,17 +39,29 @@ public class HistoryViewModel extends AndroidViewModel {
                 Transform.source(transferManager.getLiveHistory())
                         .map(CopyOnWriteArrayList::new)
                         .mutate(Collections::reverse, workExecutor)
-                        .map(
-                                history ->
-                                        StreamUtils
-                                                .withIndex(history)
-                                                .map(this::getHistoryEntryViewModel)
-                                                .collect(toList()),
-                                workExecutor)
+                        .map(this::getViewModelList, workExecutor)
                         .getLiveData();
     }
 
-    private HistoryEntryViewModel getHistoryEntryViewModel(Pair<TaskEntry, Long> indexedTask) {
+    /** Header + Entries */
+    private List<HistoryItemViewModel> getViewModelList(List<TaskEntry> history) {
+        return Stream
+                .concat(
+                        Stream.of(getHistoryHeaderViewModel(history)),
+                        StreamUtils
+                                .withIndex(history)
+                                .map(this::getHistoryEntryViewModel))
+                .collect(toList());
+    }
+
+    private HistoryItemViewModel getHistoryHeaderViewModel(List<TaskEntry> history) {
+        long totalTasks = history.size();
+        long successfulTasks = history.stream().filter(TaskEntry::succeeded).count();
+        return new HistoryHeaderViewModel(
+                totalTasks, successfulTasks, totalTasks - successfulTasks);
+    }
+
+    private HistoryItemViewModel getHistoryEntryViewModel(Pair<TaskEntry, Long> indexedTask) {
         TaskEntry task = indexedTask.first;
         long index = indexedTask.second;
         int backgroundColorRes =

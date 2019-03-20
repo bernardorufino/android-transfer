@@ -1,8 +1,9 @@
 package com.brufino.android.playground.components.main.pages.history.viewmodel;
 
 import android.view.View;
+import com.brufino.android.playground.R;
 
-public class HistoryEntryViewModel {
+public class HistoryEntryViewModel extends HistoryItemViewModel {
     public final int cellBackgroundColor;
     public final String task;
     public final String speed;
@@ -31,6 +32,7 @@ public class HistoryEntryViewModel {
             boolean errorVisible,
             View.OnClickListener onTaskClicked,
             View.OnClickListener onTaskErrorClicked) {
+        super(R.layout.history_entry);
         this.cellBackgroundColor = cellBackgroundColor;
         this.task = task;
         this.speed = speed;

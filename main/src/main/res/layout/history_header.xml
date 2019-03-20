@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android">
     <data>
-        <import type="com.brufino.android.playground.components.main.pages.history.viewmodel.HistoryEntryViewModel"/>
-        <variable name="viewModel" type="java.util.List&lt;HistoryEntryViewModel>"/>
+        <import type="com.brufino.android.playground.components.main.pages.history.viewmodel.HistoryHeaderViewModel"/>
+        <variable name="viewModel" type="HistoryHeaderViewModel"/>
     </data>
     <TextView
             android:layout_width="match_parent"
@@ -10,5 +10,5 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
             android:paddingBottom="6dp"
-            android:text="@{viewModel.size() + ` tasks`}"/>
+            android:text="@{viewModel.getText()}"/>
 </layout>
