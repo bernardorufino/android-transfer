@@ -37,12 +37,12 @@ public class MultiThreadTask extends TransferTask {
             MultiSubTaskFactory subTaskFactory,
             Looper looper,
             TransferConfiguration configuration,
-            ExecutorService multiTaskReaderExecutor,
-            ExecutorService multiTaskWriterExecutor) {
+            ExecutorService taskReaderExecutor,
+            ExecutorService taskWriterExecutor) {
         super(context, looper, configuration, "Multi");
         mSubTaskFactory = subTaskFactory;
-        mReaderExecutor = multiTaskReaderExecutor;
-        mWriterExecutor = multiTaskWriterExecutor;
+        mReaderExecutor = taskReaderExecutor;
+        mWriterExecutor = taskWriterExecutor;
         mController = getController();
     }
 

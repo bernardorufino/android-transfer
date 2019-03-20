@@ -41,6 +41,7 @@ public class Provisioners {
     @SuppressLint("StaticFieldLeak")
     @GuardedBy("INSTANCE_LOCK")
     private static volatile Provisioners sInstance;
+
     public static Provisioners get() {
         if (sInstance == null) {
             synchronized (INSTANCE_LOCK) {

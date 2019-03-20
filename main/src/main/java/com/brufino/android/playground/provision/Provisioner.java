@@ -3,6 +3,7 @@ package com.brufino.android.playground.provision;
 import android.app.Activity;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
@@ -10,7 +11,6 @@ import com.brufino.android.playground.components.main.TaskSheet;
 import com.brufino.android.playground.components.main.pages.history.HistoryAdapter;
 import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.concurrent.AppThreadFactory;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.extensions.livedata.LiveDataPersisterFactory;
 import com.brufino.android.playground.extensions.permission.PermissionRequester;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
@@ -26,33 +26,44 @@ import java.util.function.Supplier;
 
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
 import static com.brufino.android.common.utils.Preconditions.checkState;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.isMainThread;
 
 class Provisioner {
+    private final Object mTaskManagerLock = new Object();
+    private final Object mWorkExecutorLock = new Object();
+    private final Object mRequestExecutorLock = new Object();
+    private final Object mIoExecutorLock = new Object();
+    private final Object mTaskReaderExecutorLock = new Object();
+    private final Object mTaskWriterExecutorLock = new Object();
     private TransferManager mTransferManager;
 
-    private final Object mTaskManagerLock = new Object();
-
     @GuardedBy("mTaskManagerLock")
+    @Nullable
     private volatile TaskManager mTaskManager;
 
-    private final Object mWorkExecutorLock = new Object();
-
     @GuardedBy("mWorkExecutorLock")
+    @Nullable
     private volatile ExecutorService mWorkExecutor;
 
-    private final Object mRequestExecutorLock = new Object();
-
     @GuardedBy("mRequestExecutorLock")
+    @Nullable
     private volatile ExecutorService mRequestExecutor;
 
-    private final Object mIoExecutorLock = new Object();
-
     @GuardedBy("mIoExecutorLock")
+    @Nullable
     private volatile ExecutorService mIoExecutor;
+
+    @GuardedBy("mTaskReaderExecutorLock")
+    @Nullable
+    private volatile ExecutorService mTaskReaderExecutor;
+
+    @GuardedBy("mTaskWriterExecutorLock")
+    @Nullable
+    private volatile ExecutorService mTaskWriterExecutor;
 
     @MainThread
     TransferManager getTransferManager(ApplicationContext context) {
-        checkState(ConcurrencyUtils.isMainThread(), "Can't create TransferManager on background thread");
+        checkState(isMainThread());
         if (mTransferManager == null) {
             mTransferManager =
                     new TransferManager(context, getTaskManager(context), getWorkExecutor());
@@ -69,7 +80,7 @@ class Provisioner {
             synchronized (mWorkExecutorLock) {
                 if (mWorkExecutor == null) {
                     mWorkExecutor =
-                            Executors.newCachedThreadPool(new AppThreadFactory("work-executor-%d"));
+                            Executors.newCachedThreadPool(getThreadFactory("work-executor-%d"));
                 }
             }
         }
@@ -81,8 +92,8 @@ class Provisioner {
             synchronized (mRequestExecutorLock) {
                 if (mRequestExecutor == null) {
                     mRequestExecutor =
-                            Executors.newFixedThreadPool(
-                                    6, new AppThreadFactory("request-executor-%d"));
+                            Executors
+                                    .newFixedThreadPool(6, getThreadFactory("request-executor-%d"));
                 }
             }
         }
@@ -95,12 +106,44 @@ class Provisioner {
                 if (mIoExecutor == null) {
                     // Assuming 80% IO and 4 cores
                     mIoExecutor =
-                            Executors.newFixedThreadPool(
-                                    20, new AppThreadFactory("io-executor-%d"));
+                            Executors
+                                    .newFixedThreadPool(20, getThreadFactory("io-executor-%d"));
                 }
             }
         }
         return mIoExecutor;
+    }
+
+    private ExecutorService getTaskReaderExecutor() {
+        if (mTaskReaderExecutor == null) {
+            synchronized (mTaskReaderExecutorLock) {
+                if (mTaskReaderExecutor == null) {
+                    mTaskReaderExecutor =
+                            Executors
+                                    .newSingleThreadExecutor(
+                                            getThreadFactory("multi-task-reader"));
+                }
+            }
+
+        }
+        return mTaskReaderExecutor;
+    }
+
+    private ExecutorService getTaskWriterExecutor() {
+        if (mTaskWriterExecutor == null) {
+            synchronized (mTaskWriterExecutorLock) {
+                if (mTaskWriterExecutor == null) {
+                    mTaskWriterExecutor =
+                            Executors
+                                    .newSingleThreadExecutor(getThreadFactory("multi-task-writer"));
+                }
+            }
+        }
+        return mTaskWriterExecutor;
+    }
+
+    private AppThreadFactory getThreadFactory(String nameFormat) {
+        return new AppThreadFactory(nameFormat);
     }
 
     TaskManager getTaskManager(ApplicationContext context) {
@@ -156,9 +199,8 @@ class Provisioner {
                 context,
                 getServiceClientFactory(context),
                 getMultiSubTaskFactory(context),
-                // TODO: Create individual executors composed of 1 thread
-                getWorkExecutor(),
-                getWorkExecutor());
+                getTaskReaderExecutor(),
+                getTaskWriterExecutor());
     }
 
     private ServiceClientFactory getServiceClientFactory(ApplicationContext context) {

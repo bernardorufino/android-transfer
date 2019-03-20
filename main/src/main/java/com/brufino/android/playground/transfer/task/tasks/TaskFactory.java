@@ -16,20 +16,20 @@ public class TaskFactory {
     private final ApplicationContext mContext;
     private final ServiceClientFactory mClientFactory;
     private final MultiSubTaskFactory mMultiSubTaskFactory;
-    private final ExecutorService mMultiTaskReaderExecutor;
-    private final ExecutorService mMultiTaskWriterExecutor;
+    private final ExecutorService mTaskReaderExecutor;
+    private final ExecutorService mTaskWriterExecutor;
 
     public TaskFactory(
             ApplicationContext context,
             ServiceClientFactory clientFactory,
             MultiSubTaskFactory multiSubTaskFactory,
-            ExecutorService multiTaskReaderExecutor,
-            ExecutorService multiTaskWriterExecutor) {
+            ExecutorService taskReaderExecutor,
+            ExecutorService taskWriterExecutor) {
         mContext = context;
         mClientFactory = clientFactory;
         mMultiSubTaskFactory = multiSubTaskFactory;
-        mMultiTaskReaderExecutor = multiTaskReaderExecutor;
-        mMultiTaskWriterExecutor = multiTaskWriterExecutor;
+        mTaskReaderExecutor = taskReaderExecutor;
+        mTaskWriterExecutor = taskWriterExecutor;
     }
 
     public TransferTask getTask(
@@ -45,8 +45,8 @@ public class TaskFactory {
                         mMultiSubTaskFactory,
                         looper,
                         configuration,
-                        mMultiTaskReaderExecutor,
-                        mMultiTaskWriterExecutor);
+                        mTaskReaderExecutor,
+                        mTaskWriterExecutor);
             default:
                 throw new IllegalArgumentException("Unknown task code " + code);
         }
