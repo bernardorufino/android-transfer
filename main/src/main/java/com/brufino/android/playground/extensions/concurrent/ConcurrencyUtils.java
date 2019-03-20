@@ -10,6 +10,7 @@ import com.brufino.android.playground.extensions.ThrowingSupplier;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -38,7 +39,7 @@ public class ConcurrencyUtils {
     }
 
     public static <T> CompletableFuture<T> execute(
-            Executor executor, ThrowingSupplier<T, Exception> supplier) {
+            Executor executor, ThrowingSupplier<T, ? extends Exception> supplier) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -51,20 +52,20 @@ public class ConcurrencyUtils {
     }
 
     public static CompletableFuture<Void> execute(
-            Executor executor, ThrowingRunnable<Throwable> runnable) {
+            Executor executor, ThrowingRunnable<? extends Exception> runnable) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
                         runnable.run();
                         return null;
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         throw getCompletionException(e);
                     }
                 },
                 executor);
     }
 
-    public static void asyncThrowing(ThrowingRunnable<Exception> runnable) {
+    public static void asyncThrowing(ThrowingRunnable<? extends Exception> runnable) {
         try {
             runnable.run();
         } catch (Exception e) {
@@ -72,7 +73,7 @@ public class ConcurrencyUtils {
         }
     }
 
-    public static <T> T asyncThrowing(ThrowingSupplier<T, Exception> supplier) {
+    public static <T> T asyncThrowing(ThrowingSupplier<T, ? extends Exception> supplier) {
         try {
             return supplier.get();
         } catch (Exception e) {
@@ -80,7 +81,8 @@ public class ConcurrencyUtils {
         }
     }
 
-    public static <I, O> Function<I, O> asyncThrowing(ThrowingFunction<I, O, Exception> function) {
+    public static <I, O> Function<I, O> asyncThrowing(
+            ThrowingFunction<I, O, ? extends Exception> function) {
         return (I input) -> {
             try {
                 return function.apply(input);
@@ -88,6 +90,10 @@ public class ConcurrencyUtils {
                 throw getCompletionException(e);
             }
         };
+    }
+
+    public static <T> Function<Throwable, T> throwIn(Looper looper) {
+        return throwIn(HandlerExecutor.forLooper(looper));
     }
 
     public static <T> Function<Throwable, T> throwIn(Executor executor) {
