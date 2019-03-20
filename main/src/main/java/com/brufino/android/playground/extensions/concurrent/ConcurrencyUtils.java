@@ -2,17 +2,17 @@ package com.brufino.android.playground.extensions.concurrent;
 
 import android.os.Handler;
 import android.os.Looper;
-import androidx.annotation.Nullable;
 import com.brufino.android.playground.extensions.ThrowingFunction;
 import com.brufino.android.playground.extensions.ThrowingRunnable;
 import com.brufino.android.playground.extensions.ThrowingSupplier;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class ConcurrencyUtils {
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
@@ -109,22 +109,20 @@ public class ConcurrencyUtils {
         };
     }
 
-    public static <T, E> Function<Throwable, T> catching(
-            Class<E> exceptionClass, Consumer<E> consumer) {
+    @SafeVarargs
+    public static <T, E extends Throwable> Function<Throwable, T> catching(
+            Consumer<E> consumer, Class<? extends E>... classes) {
         return throwable -> {
-            if (exceptionClass.isInstance(throwable)) {
-                consumer.accept(exceptionClass.cast(throwable));
-                throw new ExceptionCaught(throwable);
-            } else if (throwable instanceof CompletionException) {
-                Throwable cause = throwable.getCause();
-                if (exceptionClass.isInstance(cause)) {
-                    consumer.accept(exceptionClass.cast(cause));
-                    throw new ExceptionCaught(cause);
-                }
+            Throwable e =
+                    (throwable instanceof CompletionException) ? throwable.getCause() : throwable;
+            Optional<Class<? extends E>> caught =
+                    Stream.of(classes).filter(c -> c.isInstance(e)).findFirst();
+            if (caught.isPresent()) {
+                consumer.accept(caught.get().cast(e));
+                throw new ExceptionCaught(e);
             }
-            throw getCompletionException(throwable);
+            throw getCompletionException(e);
         };
-
     }
 
     public static void resettingInterrupt(InterruptibleRunnable runnable) {

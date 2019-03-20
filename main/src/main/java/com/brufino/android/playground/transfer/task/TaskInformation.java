@@ -1,5 +1,6 @@
 package com.brufino.android.playground.transfer.task;
 
+import androidx.annotation.Nullable;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 
 import java.util.concurrent.TimeUnit;
@@ -9,8 +10,9 @@ import static com.brufino.android.common.utils.Preconditions.checkState;
 public class TaskInformation {
     private static final int END_TIME_NOT_SET = -1;
 
-    public static TaskInformation started(String name, TransferConfiguration configuration) {
-        return new TaskInformation(name, System.nanoTime(), END_TIME_NOT_SET, 0, 0, configuration);
+    static TaskInformation started(String name, TransferConfiguration configuration) {
+        return new TaskInformation(
+                name, System.nanoTime(), END_TIME_NOT_SET, 0, 0, configuration, null);
     }
 
     private final long mStartTimeNano;
@@ -19,6 +21,8 @@ public class TaskInformation {
     public final int inputRead;
     public final int outputWritten;
     public final TransferConfiguration configuration;
+    @Nullable public final Exception exception;
+
 
     private TaskInformation(
             String name,
@@ -26,13 +30,15 @@ public class TaskInformation {
             long endTimeNano,
             int inputRead,
             int outputWritten,
-            TransferConfiguration configuration) {
+            TransferConfiguration configuration,
+            @Nullable Exception exception) {
         this.name = name;
         this.mStartTimeNano = startTimeNano;
         this.mEndTimeNano = endTimeNano;
         this.inputRead = inputRead;
         this.outputWritten = outputWritten;
         this.configuration = configuration;
+        this.exception = exception;
     }
 
     /** In milliseconds. */
@@ -50,7 +56,7 @@ public class TaskInformation {
         return TimeUnit.NANOSECONDS.toMillis(interval);
     }
 
-    TaskInformation setEnded() {
+    TaskInformation setEnded(@Nullable Exception exception) {
         checkState(mEndTimeNano == END_TIME_NOT_SET, "TaskInformation already marked as ended.");
         return new TaskInformation(
                 name,
@@ -58,7 +64,8 @@ public class TaskInformation {
                 System.nanoTime(),
                 inputRead,
                 outputWritten,
-                configuration);
+                configuration,
+                exception);
     }
 
     TaskInformation addInputRead(int value) {
@@ -68,7 +75,8 @@ public class TaskInformation {
                 mEndTimeNano,
                 inputRead + value,
                 outputWritten,
-                configuration);
+                configuration,
+                exception);
     }
 
     TaskInformation addOutputWritten(int value) {
@@ -78,7 +86,8 @@ public class TaskInformation {
                 mEndTimeNano,
                 inputRead,
                 outputWritten + value,
-                configuration);
+                configuration,
+                exception);
     }
 
     TaskInformation setConfiguration(TransferConfiguration value) {
@@ -88,6 +97,7 @@ public class TaskInformation {
                 mEndTimeNano,
                 inputRead,
                 outputWritten,
-                value);
+                value,
+                exception);
     }
 }

@@ -23,6 +23,11 @@ import java.util.concurrent.TimeUnit;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 
 public class Adapters {
+    @BindingAdapter("android:visibility")
+    public static void setVisibility(View view, boolean value) {
+        view.setVisibility(value ? View.VISIBLE : View.GONE);
+    }
+
     @BindingAdapter("android:foo")
     public static void setFoo(TextView view, String text) {
         view.setText(text);

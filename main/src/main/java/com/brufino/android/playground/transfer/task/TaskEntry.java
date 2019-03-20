@@ -1,11 +1,12 @@
 package com.brufino.android.playground.transfer.task;
 
 import androidx.annotation.Nullable;
-import com.brufino.android.playground.extensions.StringUtils;
-import com.brufino.android.playground.extensions.ViewUtils;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.io.Serializable;
+import java.io.StringWriter;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +23,7 @@ public class TaskEntry implements Serializable {
     public final int outputWritten;
     public final TransferConfiguration configuration;
     @Nullable public final Map<String, TaskMeasurement> measurements;
+    @Nullable public final Exception exception;
 
     TaskEntry(
             String name,
@@ -29,24 +31,38 @@ public class TaskEntry implements Serializable {
             int inputRead,
             int outputWritten,
             TransferConfiguration configuration,
-            @Nullable Map<String, TaskMeasurement> measurements) {
+            @Nullable Map<String, TaskMeasurement> measurements,
+            @Nullable Exception exception) {
         this.name = name;
         this.duration = duration;
         this.inputRead = inputRead;
         this.outputWritten = outputWritten;
         this.configuration = configuration;
         this.measurements = measurements;
+        this.exception = exception;
+    }
+
+    public boolean succeeded() {
+        return exception == null;
     }
 
     public String toMultilineString(int i) {
         return "TaskEntry{\n"
                 + indent(i) + "name = '" + name + "\'\n"
+                + indent(i) + "status = " + statusToString() + "\n"
                 + indent(i) + "duration = " + duration + " ms\n"
                 + indent(i) + "input read = " + sizeString(inputRead) + "\n"
                 + indent(i) + "output written = " + sizeString(outputWritten) + "\n"
                 + indent(i) + "configuration = " + configuration.toMultilineString(i + 1) + "\n"
                 + indent(i) + "measurements = " + measurementsToMultilineString(i + 1) + "\n"
                 + indent(i - 1) + "}";
+    }
+
+    private String statusToString() {
+        if (exception == null) {
+            return "succeeded";
+        }
+        return "failed (" + exception.getClass().getSimpleName() + ")";
     }
 
     private String measurementsToMultilineString(int i) {

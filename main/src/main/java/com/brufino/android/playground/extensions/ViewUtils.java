@@ -1,7 +1,16 @@
 package com.brufino.android.playground.extensions;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 public class ViewUtils {
     private static final char PADDING_CHARACTER = ' ';
+
+    public static String getStackTrace(Throwable e) {
+        StringWriter writer = new StringWriter();
+        e.printStackTrace(new PrintWriter(writer));
+        return writer.toString();
+    }
 
     public static String sizeString(int bytes) {
         if (bytes < 1024) {

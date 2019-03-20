@@ -135,7 +135,8 @@ public class TaskManager {
                                 information.inputRead,
                                 information.outputWritten,
                                 information.configuration,
-                                measurements));
+                                measurements,
+                                information.exception));
                 onHistoryChangedLocked();
                 setTaskLocked(null);
             }

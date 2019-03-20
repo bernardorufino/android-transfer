@@ -17,6 +17,7 @@
                     android:text="@{viewModel.task}"
                     android:textColor="@color/darkBackground"
                     android:background="@color/colorAccent"
+                    android:onClick="@{viewModel.onTaskClicked}"
                     style="@style/DisplayCell.History"/>
             <TextView
                     android:text="@{viewModel.speed}"
@@ -25,7 +26,13 @@
             <TextView
                     android:text="@{viewModel.outputWrittenAndDuration}"
                     android:background="@{viewModel.outputWrittenAndDurationBackground}"
-                    android:onClick="@{viewModel.onOutputWrittenAndDurationClick}"
+                    style="@style/DisplayCell.History"/>
+            <TextView
+                    android:text="E"
+                    android:textColor="@color/darkBackground"
+                    android:background="@color/colorAccent"
+                    android:onClick="@{viewModel.onTaskErrorClicked}"
+                    android:visibility="@{viewModel.errorVisible}"
                     style="@style/DisplayCell.History"/>
         </LinearLayout>
         <LinearLayout

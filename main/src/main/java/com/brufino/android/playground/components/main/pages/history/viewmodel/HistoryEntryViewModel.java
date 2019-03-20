@@ -13,7 +13,9 @@ public class HistoryEntryViewModel {
     public final String transferBufferSize;
     public final String consumerInterval;
     public final String consumerBufferSize;
-    public final View.OnClickListener onOutputWrittenAndDurationClick;
+    public final boolean errorVisible;
+    public final View.OnClickListener onTaskClicked;
+    public final View.OnClickListener onTaskErrorClicked;
 
     HistoryEntryViewModel(
             int cellBackgroundColor,
@@ -26,7 +28,9 @@ public class HistoryEntryViewModel {
             String transferBufferSize,
             String consumerInterval,
             String consumerBufferSize,
-            View.OnClickListener onOutputWrittenAndDurationClick) {
+            boolean errorVisible,
+            View.OnClickListener onTaskClicked,
+            View.OnClickListener onTaskErrorClicked) {
         this.cellBackgroundColor = cellBackgroundColor;
         this.task = task;
         this.speed = speed;
@@ -37,6 +41,8 @@ public class HistoryEntryViewModel {
         this.transferBufferSize = transferBufferSize;
         this.consumerInterval = consumerInterval;
         this.consumerBufferSize = consumerBufferSize;
-        this.onOutputWrittenAndDurationClick = onOutputWrittenAndDurationClick;
+        this.errorVisible = errorVisible;
+        this.onTaskClicked = onTaskClicked;
+        this.onTaskErrorClicked = onTaskErrorClicked;
     }
 }

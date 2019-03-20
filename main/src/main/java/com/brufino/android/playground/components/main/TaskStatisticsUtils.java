@@ -17,6 +17,7 @@ public class TaskStatisticsUtils {
     public static Map<Parameters, Double> computeTimesByParameters(List<TaskEntry> history) {
         return history
                 .stream()
+                .filter(TaskEntry::succeeded)
                 .collect(
                         groupingBy(
                                 TaskStatisticsUtils::getParameters,

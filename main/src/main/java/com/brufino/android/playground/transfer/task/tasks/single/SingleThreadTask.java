@@ -6,7 +6,6 @@ import android.os.ParcelFileDescriptor;
 import android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
 import android.os.RemoteException;
-import android.util.Log;
 import com.brufino.android.common.IConsumer;
 import com.brufino.android.common.IProducer;
 import com.brufino.android.common.TransferUtils;
@@ -20,7 +19,6 @@ import com.brufino.android.playground.extensions.service.ServiceClient;
 import java.io.*;
 import java.util.concurrent.TimeoutException;
 
-import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.readFromProducer;
@@ -33,6 +31,7 @@ public class SingleThreadTask extends TransferTask {
     private final Intent mConsumerIntent;
     private final ServiceClientFactory mClientFactory;
     private final TaskController mController;
+    // TODO(brufino): Inject taskExecutor and use it instead of spinning a new thread here 
     private Thread mThread;
 
     public SingleThreadTask(
@@ -51,7 +50,7 @@ public class SingleThreadTask extends TransferTask {
 
     @Override
     protected void onStart() {
-        mThread = new Thread(this::run, "single-task");
+        mThread = new Thread(this::runTask, "single-task");
         mThread.start();
     }
 
@@ -65,33 +64,41 @@ public class SingleThreadTask extends TransferTask {
         }
     }
 
-    private void run() {
+    private void runTask() {
+        try {
+            run();
+        } catch (RemoteException | InterruptedException | IOException | TimeoutException e) {
+            abortTask(e);
+            return;
+        }
+        finishTask();
+    }
+
+    /** Will connect, run, then disconnect clients. */
+    private void run()
+            throws RemoteException, InterruptedException, IOException, TimeoutException {
         ServiceClient<IProducer> producerClient =
                 mClientFactory.getServiceClient(mProducerIntent, IProducer.Stub::asInterface);
         ServiceClient<IConsumer> consumerClient =
                 mClientFactory.getServiceClient(mConsumerIntent, IConsumer.Stub::asInterface);
-
+        producerClient.connectAsync();
+        consumerClient.connectAsync();
         try {
-            producerClient.connectAsync();
-            consumerClient.connectAsync();
-            IProducer producer = producerClient.get();
-            IConsumer consumer = consumerClient.get();
-            mController.configure(producer);
-            mController.configure(consumer);
-            ParcelFileDescriptor[] producerPipe = ParcelFileDescriptor.createPipe();
-            ParcelFileDescriptor[] consumerPipe = ParcelFileDescriptor.createPipe();
-
-            transfer(producer, consumer, producerPipe, consumerPipe);
-        } catch (RemoteException | IOException | TimeoutException e) {
-            // TODO(brufino): Don't crash the process
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            Log.i(TAG, getName() + " task thread interrupted");
+            run(producerClient.get(), consumerClient.get());
+        } finally {
+            consumerClient.disconnect();
+            producerClient.disconnect();
         }
+    }
 
-        consumerClient.disconnect();
-        producerClient.disconnect();
-        finishTask();
+    /** We have producer and consumer connected. */
+    private void run(IProducer producer, IConsumer consumer)
+            throws RemoteException, IOException, TimeoutException {
+        mController.configure(producer);
+        mController.configure(consumer);
+        ParcelFileDescriptor[] producerPipe = ParcelFileDescriptor.createPipe();
+        ParcelFileDescriptor[] consumerPipe = ParcelFileDescriptor.createPipe();
+        transfer(producer, consumer, producerPipe, consumerPipe);
     }
 
     private void transfer(
@@ -141,5 +148,4 @@ public class SingleThreadTask extends TransferTask {
         }
         mController.stopTracing(tracing);
     }
-
 }

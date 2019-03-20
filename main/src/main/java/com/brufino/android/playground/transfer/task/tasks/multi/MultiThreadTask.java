@@ -2,6 +2,7 @@ package com.brufino.android.playground.transfer.task.tasks.multi;
 
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.task.TaskController;
 import com.brufino.android.playground.transfer.task.TransferTask;
@@ -13,8 +14,10 @@ import com.brufino.android.playground.transfer.task.tasks.multi.subtasks.Consume
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeoutException;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.catching;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.throwIn;
 
@@ -43,8 +46,8 @@ public class MultiThreadTask extends TransferTask {
         try {
             pipe = ParcelFileDescriptor.createPipe();
         } catch (IOException e) {
-            // TODO(brufino): Don't crash the process
-            throw new RuntimeException(e);
+            abortTask(e);
+            return;
         }
         mReaderTask = mSubTaskFactory.getReaderSubTask(mController, pipe[1]);
         mWriterTask = mSubTaskFactory.getWriterSubTask(mController, pipe[0]);
@@ -53,7 +56,13 @@ public class MultiThreadTask extends TransferTask {
                         execute(mTaskExecutor, mReaderTask),
                         execute(mTaskExecutor, mWriterTask))
                 .thenAcceptAsync(v -> finishTask(), getExecutor())
+                .exceptionally(
+                        catching(
+                                this::abortTask,
+                                RemoteException.class,
+                                InterruptedException.class,
+                                IOException.class,
+                                TimeoutException.class))
                 .exceptionally(throwIn(getExecutor()));
     }
-
 }

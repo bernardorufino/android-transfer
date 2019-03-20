@@ -1,8 +1,7 @@
 package com.brufino.android.playground.transfer.task;
 
 import android.os.*;
-import android.util.ArrayMap;
-import androidx.annotation.GuardedBy;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
 import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.extensions.livedata.ImmediateLiveData;
@@ -10,9 +9,10 @@ import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.extensions.ApplicationContext;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
+import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.common.utils.Preconditions.checkState;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
 import static java.util.stream.Collectors.toMap;
@@ -22,7 +22,7 @@ public abstract class TransferTask implements LifecycleOwner {
     public static final String CONSUMER_PACKAGE = "com.brufino.android.consumer";
     public static final long TASK_TIME_OUT_MS = 10_000;
 
-    private final ConditionVariable mFinished = new ConditionVariable(false);
+    private final CompletableFuture<Void> mResult = new CompletableFuture<>();
     private final Object mMeasurementsLock = new Object();
     private final ApplicationContext mContext;
     private final Handler mHandler;
@@ -123,17 +123,32 @@ public abstract class TransferTask implements LifecycleOwner {
     }
 
     public void join() {
-        mFinished.block();
+        mResult.exceptionally(t -> null).join();
     }
 
+    /** Task successfully finished. */
     protected void finishTask() {
+        terminateTask(null);
+    }
+
+    /** Task failed. */
+    protected void abortTask(Exception exception) {
+        terminateTask(checkNotNull(exception));
+    }
+
+    private void terminateTask(@Nullable Exception exception) {
         mHandler.post(() -> {
-            mLiveTaskInformation.updateValue(TaskInformation::setEnded);
+            mLiveTaskInformation
+                    .updateValue(taskInformation -> taskInformation.setEnded(exception));
             mLifecycleRegistry.markState(Lifecycle.State.CREATED);
-            mFinished.open();
+            if (exception == null) {
+                mResult.complete(null);
+            } else {
+                mResult.completeExceptionally(exception);
+            }
             onStop();
         });
-        // Cannot block on mFinished here because this can be called from onStart() and would
+        // Cannot block on mResult here because this can be called from onStart() and would
         // deadlock
     }
 
