@@ -8,7 +8,6 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
-import com.brufino.android.common.CommonConstants;
 import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.extensions.livedata.transform.Transform;
@@ -16,7 +15,6 @@ import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.TransferManager;
 import com.brufino.android.playground.transfer.task.tasks.TaskFactory;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +62,7 @@ public class TaskManager {
         thread.start();
         mLooper = thread.getLooper();
         mHistory = new ArrayList<>(taskHistory.open());
-        mLiveHistory =  computableLiveData(new HandlerExecutor(mLooper), this::getHistory);
+        mLiveHistory = computableLiveData(HandlerExecutor.forLooper(mLooper), this::getHistory);
     }
 
     private List<TaskEntry> getHistory() {

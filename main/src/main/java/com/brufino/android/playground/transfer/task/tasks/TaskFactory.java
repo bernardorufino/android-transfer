@@ -1,21 +1,35 @@
 package com.brufino.android.playground.transfer.task.tasks;
 
 import android.os.Looper;
+import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.TransferManager;
 import com.brufino.android.playground.transfer.task.TransferTask;
-import com.brufino.android.playground.extensions.ApplicationContext;
+import com.brufino.android.playground.transfer.task.tasks.multi.MultiThreadTask;
+import com.brufino.android.playground.transfer.task.tasks.multi.subtasks.MultiSubTaskFactory;
+import com.brufino.android.playground.transfer.task.tasks.single.SingleThreadTask;
+
+import java.util.concurrent.ExecutorService;
 
 public class TaskFactory {
     private final ApplicationContext mContext;
     private final ServiceClientFactory mClientFactory;
+    private final MultiSubTaskFactory mMultiSubTaskFactory;
+    private final ExecutorService mMultiTaskReaderExecutor;
+    private final ExecutorService mMultiTaskWriterExecutor;
 
     public TaskFactory(
             ApplicationContext context,
-            ServiceClientFactory clientFactory) {
+            ServiceClientFactory clientFactory,
+            MultiSubTaskFactory multiSubTaskFactory,
+            ExecutorService multiTaskReaderExecutor,
+            ExecutorService multiTaskWriterExecutor) {
         mContext = context;
         mClientFactory = clientFactory;
+        mMultiSubTaskFactory = multiSubTaskFactory;
+        mMultiTaskReaderExecutor = multiTaskReaderExecutor;
+        mMultiTaskWriterExecutor = multiTaskWriterExecutor;
     }
 
     public TransferTask getTask(
@@ -26,7 +40,13 @@ public class TaskFactory {
             case TransferManager.Code.SINGLE_THREAD:
                 return new SingleThreadTask(mContext, mClientFactory, looper, configuration);
             case TransferManager.Code.MULTI_THREAD:
-                return new MultiThreadTask(mContext, looper, configuration);
+                return new MultiThreadTask(
+                        mContext,
+                        mMultiSubTaskFactory,
+                        looper,
+                        configuration,
+                        mMultiTaskReaderExecutor,
+                        mMultiTaskWriterExecutor);
             default:
                 throw new IllegalArgumentException("Unknown task code " + code);
         }

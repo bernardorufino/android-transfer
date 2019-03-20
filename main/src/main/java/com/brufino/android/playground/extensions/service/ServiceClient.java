@@ -6,17 +6,17 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.DeadObjectException;
 import android.os.IBinder;
+import android.os.RemoteException;
 import com.brufino.android.playground.extensions.ApplicationContext;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowing;
 
-// TODO(brufino): I need a new CONNECTING state because of onServiceDisconnected() and
-//                consecutive connects(). Do I??
 /**
  * Obtain an object of this class and call {@link #connect()} followed by a {@link #disconnect()}
  * only once and both from the same thread.
@@ -44,7 +44,7 @@ public class ServiceClient<T> {
                         .thenApplyAsync(converter, workExecutor);
     }
 
-    public T connect() throws DeadObjectException, InterruptedException {
+    public T connect() throws RemoteException, InterruptedException {
         connectAsync();
         return get();
     }
@@ -59,7 +59,7 @@ public class ServiceClient<T> {
 
     }
 
-    public T get() throws DeadObjectException, InterruptedException {
+    public T get() throws RemoteException, InterruptedException {
         try {
             return mInterfaceFuture.get();
         } catch (ExecutionException exception) {
@@ -67,11 +67,19 @@ public class ServiceClient<T> {
             if (cause instanceof RuntimeException) {
                 throw (RuntimeException) cause;
             }
-            if (cause instanceof DeadObjectException) {
-                throw (DeadObjectException) cause;
+            if (cause instanceof RemoteException) {
+                throw (RemoteException) cause;
             }
-            throw new RuntimeException(exception);
+            throw new CompletionException(cause);
         }
+    }
+
+    /** Has to be called from the same thread as {@link #connect()} or {@link #connectAsync()}. */
+    public void disconnect() {
+        if (!mInterfaceFuture.isDone()) {
+            throw new IllegalStateException("disconnect() called before connect()");
+        }
+        mContext.unbindService(mConnection);
     }
 
     private static IBinder checkBinderNotNull(IBinder binder) throws DeadObjectException {
@@ -79,14 +87,6 @@ public class ServiceClient<T> {
             throw new DeadObjectException("Binder null");
         }
         return binder;
-    }
-
-    /** Has to be called from the same thread as {@link #connect()} or {@link #connectAsync()}. */
-    public void disconnect() {
-        if (!mBinderFuture.isDone()) {
-            throw new IllegalStateException("disconnect() called before connect()");
-        }
-        mContext.unbindService(mConnection);
     }
 
     private class Connection implements ServiceConnection {

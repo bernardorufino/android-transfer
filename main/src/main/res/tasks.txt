@@ -24,6 +24,5 @@
 
 clear
 # T    Pd  Pi  Pc Tb Ci  Cb  R
-single 128 300 64 32 100 128 30
-single 128 100 64 32 100 128 20
-single 128 100 64 32 100 16 20
+single 128 100 64 64 100 128 30
+multi  128 100 64 64 100 128 30

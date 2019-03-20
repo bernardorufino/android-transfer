@@ -1,48 +1,37 @@
 package com.brufino.android.playground.transfer.task;
 
-import android.Manifest;
 import android.os.*;
 import android.util.ArrayMap;
-import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.lifecycle.*;
-import com.brufino.android.common.CommonConstants;
-import com.brufino.android.common.IConsumer;
-import com.brufino.android.common.IProducer;
-import com.brufino.android.playground.MainConstants;
 import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.extensions.livedata.ImmediateLiveData;
-import com.brufino.android.playground.extensions.permission.PermissionUtils;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.extensions.ApplicationContext;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static com.brufino.android.common.utils.Preconditions.checkState;
-import static com.brufino.android.playground.extensions.AndroidUtils.getDocumentPath;
 import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
 import static java.util.stream.Collectors.toMap;
 
 public abstract class TransferTask implements LifecycleOwner {
     public static final String PRODUCER_PACKAGE = "com.brufino.android.producer";
     public static final String CONSUMER_PACKAGE = "com.brufino.android.consumer";
-    protected static final long PRODUCER_TIME_OUT_MS = 10_000;
+    public static final long TASK_TIME_OUT_MS = 10_000;
 
     private final ConditionVariable mFinished = new ConditionVariable(false);
     private final Object mMeasurementsLock = new Object();
     private final ApplicationContext mContext;
     private final Handler mHandler;
+    private final Executor mExecutor;
     private final String mName;
     private final TransferConfiguration mConfiguration;
     private final LifecycleRegistry mLifecycleRegistry;
-    private final Path mTraceFile;
     private final ImmediateLiveData<TaskInformation> mLiveTaskInformation;
-
-    @GuardedBy("mMeasurementsLock")
-    private final Map<String, Collection<Long>> mMeasurements = new ArrayMap<>();
+    private final TaskController mController;
 
     public TransferTask(
             ApplicationContext context,
@@ -51,12 +40,20 @@ public abstract class TransferTask implements LifecycleOwner {
             String name) {
         mContext = context;
         mHandler = new Handler(looper);
+        mExecutor = new HandlerExecutor(mHandler);
         mName = name;
+        // TODO(brufino): Verify configuration
         mConfiguration = configuration;
         mLifecycleRegistry = new LifecycleRegistry(this);
         mLifecycleRegistry.markState(Lifecycle.State.INITIALIZED);
-        mTraceFile = getDocumentPath(name + ".trace");
-        mLiveTaskInformation = new ImmediateLiveData<>(new HandlerExecutor(mHandler));
+        mLiveTaskInformation = new ImmediateLiveData<>(mExecutor);
+        mController =
+                new TaskController(
+                        context,
+                        name,
+                        configuration,
+                        mLifecycleRegistry,
+                        mLiveTaskInformation);
     }
 
     /** When this method is called the task is already in STARTED state. */
@@ -64,6 +61,14 @@ public abstract class TransferTask implements LifecycleOwner {
 
     /** When this method is called the task is already in STOPPED/CREATED state. */
     protected void onStop() {}
+
+    protected Handler getHandler() {
+        return mHandler;
+    }
+
+    protected Executor getExecutor() {
+        return mExecutor;
+    }
 
     public String getName() {
         return mName;
@@ -91,7 +96,8 @@ public abstract class TransferTask implements LifecycleOwner {
         checkState(mLifecycleRegistry.getCurrentState() == Lifecycle.State.CREATED);
         synchronized (mMeasurementsLock) {
             //noinspection OptionalGetWithoutIsPresent
-            return mMeasurements
+            return mController
+                    .getMeasurements()
                     .entrySet()
                     .stream()
                     .collect(
@@ -131,88 +137,7 @@ public abstract class TransferTask implements LifecycleOwner {
         // deadlock
     }
 
-    protected ApplicationContext getApplicationContext() {
-        return mContext;
-    }
-
-    protected Stopwatch startTime(String label) {
-        return Stopwatch.now(
-                duration -> {
-                    synchronized (mLiveTaskInformation) {
-                        mMeasurements.computeIfAbsent(label, l -> new ArrayList<>()).add(duration);
-                    }
-                });
-    }
-
-    protected void configure(IProducer producer, IConsumer consumer) throws RemoteException {
-        checkState(
-                mLifecycleRegistry.getCurrentState() == Lifecycle.State.STARTED,
-                "Can only configure after started");
-
-        producer.configure(
-                mConfiguration.producerDataSize,
-                mConfiguration.producerChunkSize,
-                mConfiguration.producerInterval);
-        consumer.configure(mConfiguration.consumerBufferSize, mConfiguration.consumerInterval);
-        mLiveTaskInformation.updateValue(
-                taskInformation -> taskInformation.setConfiguration(mConfiguration));
-    }
-
-    protected int getBufferSize() {
-        return mConfiguration.transferBufferSize;
-    }
-
-    protected void inputRead(int sizeRead) {
-        mLiveTaskInformation.updateValue(
-                taskInformation -> taskInformation.addInputRead(sizeRead));
-    }
-
-    protected void outputWritten(int sizeWritten) {
-        mLiveTaskInformation.updateValue(
-                taskInformation -> taskInformation.addOutputWritten(sizeWritten));
-    }
-
-    protected boolean startTracing() {
-        if (!MainConstants.DEBUG || Files.exists(mTraceFile)) {
-            return false;
-        }
-        if (!PermissionUtils.hasPermission(
-                mContext.getContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            Log.e(
-                    CommonConstants.TAG,
-                    String.format(
-                            "Can't record %s due to no WRITE_EXTERNAL_STORAGE permission",
-                            mTraceFile));
-            return false;
-        }
-        Debug.startMethodTracing(mTraceFile.toString());
-        return true;
-    }
-
-    protected void stopTracing(boolean tracing) {
-        if (MainConstants.DEBUG && tracing) {
-            Debug.stopMethodTracing();
-        }
-    }
-
-    protected static class Stopwatch {
-        private static Stopwatch now(Consumer<Long> onStopListener) {
-            return new Stopwatch(System.nanoTime(), onStopListener);
-        }
-
-        private final long mStartTimeNanos;
-        private final Consumer<Long> mOnStopListener;
-        private long mStopTimeNanos;
-
-        private Stopwatch(long startTimeNanos, Consumer<Long> onStopListener) {
-            mStartTimeNanos = startTimeNanos;
-            mOnStopListener = onStopListener;
-            mStopTimeNanos = -1;
-        }
-
-        public void stop() {
-            mStopTimeNanos = System.nanoTime();
-            mOnStopListener.accept(mStopTimeNanos - mStartTimeNanos);
-        }
+    protected TaskController getController() {
+        return mController;
     }
 }

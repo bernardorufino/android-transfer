@@ -7,7 +7,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.widget.Toast;
 
-public class PlaygroundUtils {
+public class TransferUtils {
     private static final String CONSUMER_ACTION = ConsumerService.ACTION;
     private static final String PRODUCER_ACTION = ProducerService.ACTION;
 
@@ -33,4 +33,6 @@ public class PlaygroundUtils {
                     .show();
         });
     }
+
+    private TransferUtils() {}
 }

@@ -1,4 +1,4 @@
-package com.brufino.android.playground.transfer.task.tasks;
+package com.brufino.android.playground.transfer.task.tasks.single;
 
 import android.content.Intent;
 import android.os.Looper;
@@ -9,25 +9,33 @@ import android.os.RemoteException;
 import android.util.Log;
 import com.brufino.android.common.IConsumer;
 import com.brufino.android.common.IProducer;
-import com.brufino.android.common.PlaygroundUtils;
-import com.brufino.android.playground.MainConstants;
+import com.brufino.android.common.TransferUtils;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
 import com.brufino.android.playground.transfer.TransferConfiguration;
+import com.brufino.android.playground.transfer.task.TaskController;
 import com.brufino.android.playground.transfer.task.TransferTask;
 import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.service.ServiceClient;
 
 import java.io.*;
+import java.util.concurrent.TimeoutException;
 
 import static com.brufino.android.common.CommonConstants.TAG;
+import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.common.utils.Preconditions.checkState;
+import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.readFromProducer;
+import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.sendDataReceivedToConsumer;
+import static com.brufino.android.playground.transfer.task.tasks.TaskUtils.writeToConsumer;
+import static java.lang.Math.min;
 
 public class SingleThreadTask extends TransferTask {
     private final Intent mProducerIntent;
     private final Intent mConsumerIntent;
     private final ServiceClientFactory mClientFactory;
+    private final TaskController mController;
+    private Thread mThread;
 
-    SingleThreadTask(
+    public SingleThreadTask(
             ApplicationContext context,
             ServiceClientFactory serviceClientFactory,
             Looper looper,
@@ -35,14 +43,26 @@ public class SingleThreadTask extends TransferTask {
         super(context, looper, configuration, "Single");
         mClientFactory = serviceClientFactory;
         mProducerIntent =
-                PlaygroundUtils.getProducerIntent(TransferTask.PRODUCER_PACKAGE);
+                TransferUtils.getProducerIntent(TransferTask.PRODUCER_PACKAGE);
         mConsumerIntent =
-                PlaygroundUtils.getConsumerIntent(TransferTask.CONSUMER_PACKAGE);
+                TransferUtils.getConsumerIntent(TransferTask.CONSUMER_PACKAGE);
+        mController = getController();
     }
 
     @Override
-    public void onStart() {
-        new Thread(this::run, "single-thread-transfer").start();
+    protected void onStart() {
+        mThread = new Thread(this::run, "single-task");
+        mThread.start();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try {
+            mThread.join();
+        } catch (InterruptedException e) {
+            checkNotNull(Looper.myLooper()).quitSafely();
+        }
     }
 
     private void run() {
@@ -56,13 +76,14 @@ public class SingleThreadTask extends TransferTask {
             consumerClient.connectAsync();
             IProducer producer = producerClient.get();
             IConsumer consumer = consumerClient.get();
-
+            mController.configure(producer);
+            mController.configure(consumer);
             ParcelFileDescriptor[] producerPipe = ParcelFileDescriptor.createPipe();
             ParcelFileDescriptor[] consumerPipe = ParcelFileDescriptor.createPipe();
 
-            configure(producer, consumer);
             transfer(producer, consumer, producerPipe, consumerPipe);
-        } catch (RemoteException | IOException e) {
+        } catch (RemoteException | IOException | TimeoutException e) {
+            // TODO(brufino): Don't crash the process
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
             Log.i(TAG, getName() + " task thread interrupted");
@@ -78,7 +99,7 @@ public class SingleThreadTask extends TransferTask {
             IConsumer consumer,
             ParcelFileDescriptor[] producerPipe,
             ParcelFileDescriptor[] consumerPipe)
-            throws RemoteException, IOException {
+            throws RemoteException, IOException, TimeoutException {
         producer.produce(0, producerPipe[1]);
         producerPipe[1].close();
 
@@ -88,58 +109,37 @@ public class SingleThreadTask extends TransferTask {
         try (DataInputStream input =
                      new DataInputStream(new AutoCloseInputStream(producerPipe[0]));
              OutputStream output = new AutoCloseOutputStream(consumerPipe[1])) {
-            byte[] buffer = new byte[getBufferSize()];
+            byte[] buffer = new byte[mController.getBufferSize()];
             transfer(consumer, input, output, buffer);
         }
+
+        consumer.finish();
     }
 
     private void transfer(
             IConsumer consumer,
             DataInputStream input,
             OutputStream output,
-            byte[] buffer) throws IOException, RemoteException {
-        boolean tracing = startTracing();
-        long deadline = System.currentTimeMillis() + PRODUCER_TIME_OUT_MS;
+            byte[] buffer) throws IOException, RemoteException, TimeoutException {
+        boolean tracing = mController.startTracing();
+        long deadline = System.currentTimeMillis() + TASK_TIME_OUT_MS;
         int chunkSize;
-        while ((chunkSize = input.readInt()) > 0 && System.currentTimeMillis() < deadline) {
+        while ((chunkSize = input.readInt()) > 0) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new TimeoutException("Transfer timed out");
+            }
             while (chunkSize > 0) {
-                int sizeToRead = (chunkSize > buffer.length) ? buffer.length : chunkSize;
-                checkState(sizeToRead > 0);
-                int sizeRead = read(input, buffer, sizeToRead);
+                int sizeRead =
+                        readFromProducer(mController, input, buffer, min(chunkSize, buffer.length));
                 if (sizeRead < 0) {
                     throw new EOFException("Unexpected EOF");
                 }
-                write(output, buffer, sizeRead);
-                consumerOnDataReceived(consumer, sizeRead);
+                writeToConsumer(mController, output, buffer, sizeRead);
+                sendDataReceivedToConsumer(mController, consumer, sizeRead);
                 chunkSize -= sizeRead;
             }
         }
-        consumer.finish();
-        stopTracing(tracing);
+        mController.stopTracing(tracing);
     }
 
-    private void consumerOnDataReceived(IConsumer consumer, int sizeRead) throws RemoteException {
-        // Stopwatch time = startTime("onDataReceived");
-        consumer.onDataReceived(sizeRead);
-        // time.stop();
-    }
-
-    private int read(DataInputStream input, byte[] buffer, int sizeToRead) throws IOException {
-        // Stopwatch time = startTime("read");
-        int sizeRead = input.read(buffer, 0, sizeToRead);
-        inputRead(sizeRead);
-        // time.stop();
-        return sizeRead;
-    }
-
-    private void write(OutputStream output, byte[] buffer, int sizeToWrite) throws IOException {
-        // This is because the pipe would be stuck waiting for consumer to consumer the data and
-        // we won't have a chance to call onDataReceived() to signal the consumer that the data
-        // has been sent.
-        checkState(sizeToWrite <= MainConstants.PIPE_SIZE, "Can't write to pipe > 64 KB");
-        // Stopwatch time = startTime("write");
-        output.write(buffer, 0, sizeToWrite);
-        outputWritten(sizeToWrite);
-        // time.stop();
-    }
 }

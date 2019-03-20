@@ -7,14 +7,14 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
 public class HandlerExecutor implements Executor {
+    public static Executor forLooper(Looper looper) {
+        return new HandlerExecutor(new Handler(looper));
+    }
+
     private final Handler mHandler;
 
     public HandlerExecutor(Handler handler) {
         mHandler = handler;
-    }
-
-    public HandlerExecutor(Looper looper) {
-        mHandler = new Handler(looper);
     }
 
     @Override

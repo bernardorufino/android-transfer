@@ -18,6 +18,7 @@ import com.brufino.android.playground.transfer.TransferManager;
 import com.brufino.android.playground.transfer.task.TaskHistory;
 import com.brufino.android.playground.transfer.task.TaskManager;
 import com.brufino.android.playground.transfer.task.tasks.TaskFactory;
+import com.brufino.android.playground.transfer.task.tasks.multi.subtasks.MultiSubTaskFactory;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -142,12 +143,22 @@ class Provisioner {
         return new HistoryAdapter(owner);
     }
 
+    private MultiSubTaskFactory getMultiSubTaskFactory(ApplicationContext context) {
+        return new MultiSubTaskFactory(getServiceClientFactory(context));
+    }
+
     private TaskHistory getTaskHistory(ApplicationContext context) {
         return new TaskHistory(context, getIoExecutor(), getWorkExecutor());
     }
 
     private TaskFactory getTaskFactory(ApplicationContext context) {
-        return new TaskFactory(context, getServiceClientFactory(context));
+        return new TaskFactory(
+                context,
+                getServiceClientFactory(context),
+                getMultiSubTaskFactory(context),
+                // TODO: Create individual executors composed of 1 thread
+                getWorkExecutor(),
+                getWorkExecutor());
     }
 
     private ServiceClientFactory getServiceClientFactory(ApplicationContext context) {

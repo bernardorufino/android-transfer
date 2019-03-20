@@ -6,14 +6,12 @@ import android.content.ContextWrapper;
 import android.os.Environment;
 import android.util.Log;
 import androidx.annotation.Nullable;
-import com.brufino.android.common.CommonConstants;
 
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static com.brufino.android.common.CommonConstants.TAG;
-import static com.brufino.android.common.utils.Preconditions.checkArgument;
 
 public class AndroidUtils {
     public static void time(String name, Runnable runnable) {
