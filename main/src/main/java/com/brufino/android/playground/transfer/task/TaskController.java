@@ -126,7 +126,9 @@ public class TaskController {
     }
 
     Map<String, Collection<Long>> getMeasurements() {
-        return mMeasurements;
+        synchronized (mMeasurementsLock) {
+            return mMeasurements;
+        }
     }
 
     public static class Stopwatch {

@@ -23,7 +23,6 @@ public abstract class TransferTask implements LifecycleOwner {
     public static final long TASK_TIME_OUT_MS = 10_000;
 
     private final CompletableFuture<Void> mResult = new CompletableFuture<>();
-    private final Object mMeasurementsLock = new Object();
     private final ApplicationContext mContext;
     private final Handler mHandler;
     private final Executor mExecutor;
@@ -94,20 +93,18 @@ public abstract class TransferTask implements LifecycleOwner {
      */
     Map<String, TaskMeasurement> getMeasurements() {
         checkState(mLifecycleRegistry.getCurrentState() == Lifecycle.State.CREATED);
-        synchronized (mMeasurementsLock) {
-            //noinspection OptionalGetWithoutIsPresent
-            return mController
-                    .getMeasurements()
-                    .entrySet()
-                    .stream()
-                    .collect(
-                            toMap(
-                                    Map.Entry::getKey,
-                                    entry ->
-                                            TaskMeasurement.create(
-                                                    entry.getKey(),
-                                                    entry.getValue())));
-        }
+        //noinspection OptionalGetWithoutIsPresent
+        return mController
+                .getMeasurements()
+                .entrySet()
+                .stream()
+                .collect(
+                        toMap(
+                                Map.Entry::getKey,
+                                entry ->
+                                        TaskMeasurement.create(
+                                                entry.getKey(),
+                                                entry.getValue())));
     }
 
     void trigger() {
