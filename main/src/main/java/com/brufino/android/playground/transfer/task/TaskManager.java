@@ -19,7 +19,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Future;
 
 import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
@@ -116,6 +118,19 @@ public class TaskManager {
         }
     }
 
+    /** Cancels the currently running task. */
+    @Nullable
+    public CompletableFuture<Void> cancelTask() throws NoTaskRunningException {
+        final TransferTask task;
+        synchronized (mTaskLock) {
+            if (mTask == null) {
+                throw new NoTaskRunningException("Can't cancel task.");
+            }
+            task = mTask;
+        }
+        return task.cancel();
+    }
+
     /**
      * If the main-thread is very busy, when for example there are 1000+ tasks and the history
      * fragment has just too much text, the task will slow down in places where we have callbacks
@@ -145,6 +160,12 @@ public class TaskManager {
 
     public static class ConcurrentTaskException extends Exception {
         private ConcurrentTaskException(String message) {
+            super(message);
+        }
+    }
+
+    public static class NoTaskRunningException extends Exception {
+        private NoTaskRunningException(String message) {
             super(message);
         }
     }

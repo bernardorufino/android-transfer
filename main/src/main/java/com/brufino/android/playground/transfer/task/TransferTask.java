@@ -1,20 +1,27 @@
 package com.brufino.android.playground.transfer.task;
 
-import android.os.*;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.Nullable;
-import androidx.lifecycle.*;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.LifecycleRegistry;
+import androidx.lifecycle.LiveData;
+import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.concurrent.HandlerExecutor;
 import com.brufino.android.playground.extensions.livedata.ImmediateLiveData;
+import com.brufino.android.playground.transfer.TransferCancellationFailedException;
+import com.brufino.android.playground.transfer.TransferCancelledException;
 import com.brufino.android.playground.transfer.TransferConfiguration;
-import com.brufino.android.playground.extensions.ApplicationContext;
 
-import java.util.*;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import static com.brufino.android.common.utils.Preconditions.checkNotNull;
 import static com.brufino.android.common.utils.Preconditions.checkState;
-import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.computableLiveData;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowingFunction;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.catching;
 import static java.util.stream.Collectors.toMap;
 
 public abstract class TransferTask implements LifecycleOwner {
@@ -31,6 +38,18 @@ public abstract class TransferTask implements LifecycleOwner {
     private final LifecycleRegistry mLifecycleRegistry;
     private final ImmediateLiveData<TaskInformation> mLiveTaskInformation;
     private final TaskController mController;
+    private volatile boolean mCancelRequested;
+
+    /**
+     * This is the task's private cancel mechanism, which will be ignored if the subclass
+     * implements {@link #onCancel()}.
+     *
+     * MUST only be accessed from the mHandler's looper thread.
+     *
+     * @see #getTerminationException(Exception) 
+     */
+    private boolean mPrivateCancel;
+
 
     public TransferTask(
             ApplicationContext context,
@@ -53,20 +72,8 @@ public abstract class TransferTask implements LifecycleOwner {
                         configuration,
                         mLifecycleRegistry,
                         mLiveTaskInformation);
-    }
-
-    /** When this method is called the task is already in STARTED state. */
-    protected abstract void onStart();
-
-    /** When this method is called the task is already in STOPPED/CREATED state. */
-    protected void onStop() {}
-
-    protected Handler getHandler() {
-        return mHandler;
-    }
-
-    protected Executor getExecutor() {
-        return mExecutor;
+        mCancelRequested = false;
+        mPrivateCancel = false;
     }
 
     public String getName() {
@@ -76,6 +83,47 @@ public abstract class TransferTask implements LifecycleOwner {
     @Override
     public Lifecycle getLifecycle() {
         return mLifecycleRegistry;
+    }
+
+    public void join() {
+        mResult.exceptionally(t -> null).join();
+    }
+
+    /**
+     * Future returned will complete normally if cancellation happens, otherwise it will complete
+     * exceptionally. Note that if the task completed successfully this future will complete with
+     * exception {@link TransferCancellationFailedException}.
+     */
+    public CompletableFuture<Void> cancel() {
+        mCancelRequested = true;
+        mHandler.post(this::onCancel);
+        return mResult
+                .<Void>thenApplyAsync(
+                        // Normal completion becomes TaskCancellationFailedException
+                        asyncThrowingFunction(TransferCancellationFailedException::new), mExecutor)
+                .exceptionally(
+                        // Task cancellation becomes normal completion
+                        catching(e -> null, TransferCancelledException.class));
+
+    }
+
+    /** When this method is called the task is already in STARTED state. */
+    protected abstract void onStart();
+
+    /** When this method is called the task is already in STOPPED/CREATED state. */
+    @SuppressWarnings("WeakerAccess")
+    protected void onStop() {}
+
+    /**
+     * Override to implement cancellation.
+     *
+     * If not overridden a cancel request will result in the task effectively completing by the
+     * implementation but being considered cancelled, i.e. terminated with a
+     * {@link TransferCancelledException}.
+     */
+    @SuppressWarnings("WeakerAccess")
+    protected void onCancel() {
+        mPrivateCancel = true;
     }
 
     TaskInformation getTaskInformation() {
@@ -112,15 +160,24 @@ public abstract class TransferTask implements LifecycleOwner {
                  mLifecycleRegistry.getCurrentState() == Lifecycle.State.INITIALIZED,
                 "Task already executed.");
 
-        mHandler.post(() -> {
-            mLiveTaskInformation.setValue(TaskInformation.started(mName, mConfiguration));
-            mLifecycleRegistry.markState(Lifecycle.State.STARTED);
-            onStart();
-        });
+        mHandler.post(
+                () -> {
+                    mLiveTaskInformation.setValue(TaskInformation.started(mName, mConfiguration));
+                    mLifecycleRegistry.markState(Lifecycle.State.STARTED);
+                    onStart();
+                });
     }
 
-    public void join() {
-        mResult.exceptionally(t -> null).join();
+    protected Handler getHandler() {
+        return mHandler;
+    }
+
+    protected Executor getExecutor() {
+        return mExecutor;
+    }
+
+    protected TaskController getController() {
+        return mController;
     }
 
     /** Task successfully finished. */
@@ -133,23 +190,38 @@ public abstract class TransferTask implements LifecycleOwner {
         terminateTask(checkNotNull(exception));
     }
 
+    /** Task fulfilled cancel. */
+    @SuppressWarnings("unused")
+    protected void markTaskCancelled() {
+        checkState(mCancelRequested, "Task was cancelled but there was no cancel request.");
+        terminateTask(new TransferCancelledException());
+    }
+
     private void terminateTask(@Nullable Exception exception) {
-        mHandler.post(() -> {
-            mLiveTaskInformation
-                    .updateValue(taskInformation -> taskInformation.setEnded(exception));
-            mLifecycleRegistry.markState(Lifecycle.State.CREATED);
-            if (exception == null) {
-                mResult.complete(null);
-            } else {
-                mResult.completeExceptionally(exception);
-            }
-            onStop();
-        });
+        mHandler.post(
+                () -> {
+                    Exception finalException = getTerminationException(exception);
+                    mLiveTaskInformation
+                            .updateValue(taskInformation -> taskInformation.setEnded(finalException));
+                    mLifecycleRegistry.markState(Lifecycle.State.CREATED);
+                    if (finalException == null) {
+                        mResult.complete(null);
+                    } else {
+                        mResult.completeExceptionally(finalException);
+                    }
+                    onStop();
+                });
         // Cannot block on mResult here because this can be called from onStart() and would
         // deadlock
     }
 
-    protected TaskController getController() {
-        return mController;
+    private Exception getTerminationException(@Nullable Exception exception) {
+        if (exception == null && mPrivateCancel) {
+            // Task completed with a cancel request mid-flight not handled by the implementation.
+            // This means the task practically completes but is considered cancelled.
+            return new TransferCancelledException();
+        }
+        return exception;
     }
+
 }

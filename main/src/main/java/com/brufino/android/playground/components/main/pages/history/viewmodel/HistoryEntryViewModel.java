@@ -17,6 +17,7 @@ public class HistoryEntryViewModel extends HistoryItemViewModel {
     public final boolean errorVisible;
     public final View.OnClickListener onTaskClicked;
     public final View.OnClickListener onTaskErrorClicked;
+    public final String errorText;
 
     HistoryEntryViewModel(
             int cellBackgroundColor,
@@ -30,6 +31,7 @@ public class HistoryEntryViewModel extends HistoryItemViewModel {
             String consumerInterval,
             String consumerBufferSize,
             boolean errorVisible,
+            String errorText,
             View.OnClickListener onTaskClicked,
             View.OnClickListener onTaskErrorClicked) {
         super(R.layout.history_entry);
@@ -44,6 +46,7 @@ public class HistoryEntryViewModel extends HistoryItemViewModel {
         this.consumerInterval = consumerInterval;
         this.consumerBufferSize = consumerBufferSize;
         this.errorVisible = errorVisible;
+        this.errorText = errorText;
         this.onTaskClicked = onTaskClicked;
         this.onTaskErrorClicked = onTaskErrorClicked;
     }

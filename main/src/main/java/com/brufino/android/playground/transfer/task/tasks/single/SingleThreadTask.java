@@ -9,7 +9,6 @@ import android.os.RemoteException;
 import com.brufino.android.common.IConsumer;
 import com.brufino.android.common.IProducer;
 import com.brufino.android.common.TransferUtils;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.extensions.service.ServiceClientFactory;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.task.TaskController;
@@ -54,7 +53,7 @@ public class SingleThreadTask extends TransferTask {
 
     @Override
     protected void onStart() {
-        execute(mTaskExecutor, this::runTask);
+        execute(this::runTask, mTaskExecutor);
     }
 
     private void runTask() {

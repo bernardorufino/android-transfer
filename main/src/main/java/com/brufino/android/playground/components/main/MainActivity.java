@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.PersistableBundle;
 import android.util.Log;
 import android.widget.Toast;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
@@ -16,16 +17,15 @@ import androidx.databinding.DataBindingUtil;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelProviders;
 import androidx.viewpager.widget.PagerAdapter;
-import com.brufino.android.common.CommonConstants;
 import com.brufino.android.playground.MainConstants;
 import com.brufino.android.playground.components.main.pages.statistics.StatisticsFragment;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.extensions.permission.PermissionRequester;
 import com.brufino.android.playground.provision.Provisioners;
 import com.brufino.android.playground.R;
 import com.brufino.android.playground.components.main.pages.aggregate.AggregateFragment;
 import com.brufino.android.playground.components.main.pages.history.HistoryFragment;
 import com.brufino.android.playground.databinding.ActivityMainBinding;
+import com.brufino.android.playground.transfer.TransferCancellationFailedException;
 import com.brufino.android.playground.transfer.task.TaskEntry;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.TransferManager;
@@ -40,7 +40,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 import static com.brufino.android.common.CommonConstants.TAG;
+import static com.brufino.android.common.utils.Preconditions.checkNotNull;
+import static com.brufino.android.playground.components.main.TaskStatisticsUtils.computeTimesByParameters;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
+import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.futureLiveData;
+import static java.util.function.Function.identity;
 
 // TODO(brufino): Use CopyOnWriteArrayList instead of simple array list when we are defending
 public class MainActivity extends AppCompatActivity
@@ -67,7 +71,8 @@ public class MainActivity extends AppCompatActivity
 
         mData = ViewModelProviders.of(this, viewModelFactory).get(MainViewModel.class);
         mData.onActivityCreate(this);
-        mData.setSheetFutureObserver(this, this::onSheetFutureChanged);
+        mData.sheetFuture.observe(this, this::onSheetFutureChanged);
+        mData.cancelFuture.observe(this, this::onCancelFutureChanged);
 
         ActivityMainBinding binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
         binding.setLifecycleOwner(this);
@@ -89,19 +94,41 @@ public class MainActivity extends AppCompatActivity
         mPermissionRequester.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
-    private void onSheetFutureChanged(CompletableFuture<Intent> future) {
+    private void onCancelFutureChanged(@Nullable CompletableFuture<Void> future) {
+        if (future == null || !future.isDone()) {
+            return;
+        }
+        try {
+            future.get();
+            Toast.makeText(this, "Task cancelled", Toast.LENGTH_SHORT).show();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof TransferCancellationFailedException) {
+                Log.w(TAG, "Cancel failed and task completed", cause);
+            } else {
+                Log.w(TAG, "Cancel failed because task prematurely abort", cause);
+            }
+            Toast.makeText(this, "Cancellation failed", Toast.LENGTH_SHORT).show();
+        } catch (InterruptedException e) {
+            throw new AssertionError("Impossible since future is guaranteed to be done");
+        }
+    }
+
+    private void onSheetFutureChanged(@Nullable CompletableFuture<Intent> future) {
         if (future == null || !future.isDone()) {
             return;
         }
         try {
             Intent intent = future.get();
             startActivity(intent);
-        } catch (ExecutionException | InterruptedException e) {
+        } catch (ExecutionException e) {
             Log.e(TAG, "Export sheet failed", e);
             Toast.makeText(this, "Export sheet failed", Toast.LENGTH_SHORT).show();
         } catch (ActivityNotFoundException e) {
             Log.e(TAG, "Export sheet failed", e);
             Toast.makeText(this, "No apps to open csv", Toast.LENGTH_SHORT).show();
+        } catch (InterruptedException e) {
+            throw new AssertionError("Impossible since future is guaranteed to be done");
         }
     }
 
@@ -116,38 +143,27 @@ public class MainActivity extends AppCompatActivity
             PermissionRequester permissionRequester = mPermissionRequester;
             TransferManager transferManager = mTransferManager;
             execute(
-                    mWorkExecutor,
                     () -> {
                         permissionRequester.requestPermission(
                                 Manifest.permission.WRITE_EXTERNAL_STORAGE);
                         transferManager.enqueueTransfer(code, TransferConfiguration.DEFAULT);
-                    });
+                    },
+                    mWorkExecutor);
         }
 
-        public void debug() {
-            execute(
-                            mWorkExecutor,
-                            () -> {
-                                Thread.sleep(1000);
-                                return "foo";
-                            })
-                    .thenAcceptAsync(
-                            value ->
-                                    Toast
-                                            .makeText(
-                                                    MainActivity.this, value, Toast.LENGTH_SHORT)
-                                            .show(),
-                            ConcurrencyUtils.getMainThreadExecutor());
-
+        public void cancelTask() {
+            CompletableFuture<Void> future =
+                    execute(mTransferManager::cancel, mWorkExecutor)
+                            .thenComposeAsync(identity(), mWorkExecutor);
+            futureLiveData(mData.cancelFuture, future);
         }
 
         public void clearQueue() {
-            TransferManager transferManager = mTransferManager;
-            execute(mWorkExecutor, transferManager::clearQueue);
+            execute(mTransferManager::clearQueue, mWorkExecutor);
         }
 
         public void clearHistory() {
-            mTransferManager.clearHistory();
+            execute(mTransferManager::clearHistory, mWorkExecutor);
         }
 
         public void exportSheet() {
@@ -155,7 +171,6 @@ public class MainActivity extends AppCompatActivity
             List<TaskEntry> history = mTransferManager.getLiveHistory().getValue();
             Context context = getApplicationContext();
             CompletableFuture<Intent> future = execute(
-                    mWorkExecutor,
                     () -> {
                         if (!permissionRequester.requestPermission(
                                 Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
@@ -163,7 +178,7 @@ public class MainActivity extends AppCompatActivity
                         }
                         Thread.sleep(500);
                         Map<Parameters, Double> results =
-                                TaskStatisticsUtils.computeTimesByParameters(history);
+                                computeTimesByParameters(checkNotNull(history));
                         Path sheet = mTaskSheet.save(results);
                         Intent intent = new Intent(Intent.ACTION_VIEW);
                         Uri uri =
@@ -173,8 +188,9 @@ public class MainActivity extends AppCompatActivity
                         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         return intent;
-                    });
-            mData.setSheetFuture(future);
+                    },
+                    mWorkExecutor);
+            futureLiveData(mData.sheetFuture, future);
         }
     }
 }

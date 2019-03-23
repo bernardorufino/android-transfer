@@ -12,7 +12,7 @@ import com.brufino.android.playground.extensions.collection.StreamUtils;
 import com.brufino.android.playground.extensions.livedata.transform.Transform;
 import com.brufino.android.playground.transfer.task.TaskEntry;
 import com.brufino.android.playground.transfer.TransferManager;
-import com.brufino.android.playground.extensions.ViewUtils;
+import com.brufino.android.playground.transfer.TransferCancelledException;
 
 import java.util.Collections;
 import java.util.List;
@@ -92,6 +92,7 @@ public class HistoryViewModel extends AndroidViewModel {
                 String.format(Locale.US, "%dms", task.configuration.consumerInterval),
                 sizeString(task.configuration.consumerBufferSize, 5),
                 !task.succeeded(),
+                task.cancelled() ? "C" : "E",
                 view -> logTaskDetails(view.getContext(), task),
                 view -> logTaskError(view.getContext(), task));
     }

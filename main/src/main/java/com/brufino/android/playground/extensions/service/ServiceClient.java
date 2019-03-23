@@ -8,6 +8,7 @@ import android.os.DeadObjectException;
 import android.os.IBinder;
 import android.os.RemoteException;
 import com.brufino.android.playground.extensions.ApplicationContext;
+import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -15,7 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
-import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowing;
+import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrows;
 
 /**
  * Obtain an object of this class and call {@link #connect()} followed by a {@link #disconnect()}
@@ -40,7 +41,8 @@ public class ServiceClient<T> {
         mInterfaceFuture =
                 mBinderFuture
                         .thenApplyAsync(
-                                asyncThrowing(ServiceClient::checkBinderNotNull), workExecutor)
+                                binder -> asyncThrows(() -> checkBinderNotNull(binder)),
+                                workExecutor)
                         .thenApplyAsync(converter, workExecutor);
     }
 

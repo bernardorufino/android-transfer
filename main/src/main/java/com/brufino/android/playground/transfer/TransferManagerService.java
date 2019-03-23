@@ -8,7 +8,6 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleService;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.provision.Provisioners;
 
 import java.util.concurrent.ExecutorService;
@@ -92,7 +91,7 @@ public abstract class TransferManagerService extends LifecycleService {
     protected void retry(TransferRequest request) {
         TransferManager transferManager = mTransferManager;
         execute(
-                mRequestExecutor,
-                () -> transferManager.enqueueTransfer(request.code, request.configuration));
+                () -> transferManager.enqueueTransfer(request.code, request.configuration),
+                mRequestExecutor);
     }
 }

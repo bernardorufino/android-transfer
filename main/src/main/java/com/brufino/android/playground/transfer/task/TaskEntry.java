@@ -1,6 +1,7 @@
 package com.brufino.android.playground.transfer.task;
 
 import androidx.annotation.Nullable;
+import com.brufino.android.playground.transfer.TransferCancelledException;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 
 import java.io.PrintStream;
@@ -44,6 +45,10 @@ public class TaskEntry implements Serializable {
 
     public boolean succeeded() {
         return exception == null;
+    }
+
+    public boolean cancelled() {
+        return exception instanceof TransferCancelledException;
     }
 
     public String toMultilineString(int i) {

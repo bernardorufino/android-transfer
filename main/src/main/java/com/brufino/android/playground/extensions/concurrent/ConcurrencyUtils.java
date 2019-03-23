@@ -2,7 +2,6 @@ package com.brufino.android.playground.extensions.concurrent;
 
 import android.os.Handler;
 import android.os.Looper;
-import com.brufino.android.playground.extensions.ThrowingFunction;
 import com.brufino.android.playground.extensions.ThrowingRunnable;
 import com.brufino.android.playground.extensions.ThrowingSupplier;
 
@@ -12,6 +11,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ConcurrencyUtils {
@@ -39,33 +39,21 @@ public class ConcurrencyUtils {
     }
 
     public static <T> CompletableFuture<T> execute(
-            Executor executor, ThrowingSupplier<T, ? extends Exception> supplier) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        return supplier.get();
-                    } catch (Exception e) {
-                        throw getCompletionException(e);
-                    }
-                },
-                executor);
+            ThrowingSupplier<T, ? extends Exception> supplier, Executor executor) {
+        return CompletableFuture.supplyAsync(() -> asyncThrows(supplier), executor);
     }
 
     public static CompletableFuture<Void> execute(
-            Executor executor, ThrowingRunnable<? extends Exception> runnable) {
+            ThrowingRunnable<? extends Exception> runnable, Executor executor) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    try {
-                        runnable.run();
-                        return null;
-                    } catch (Exception e) {
-                        throw getCompletionException(e);
-                    }
+                    asyncThrows(runnable);
+                    return null;
                 },
                 executor);
     }
 
-    public static void asyncThrowing(ThrowingRunnable<? extends Exception> runnable) {
+    public static void asyncThrows(ThrowingRunnable<? extends Exception> runnable) {
         try {
             runnable.run();
         } catch (Exception e) {
@@ -73,7 +61,7 @@ public class ConcurrencyUtils {
         }
     }
 
-    public static <T> T asyncThrowing(ThrowingSupplier<T, ? extends Exception> supplier) {
+    public static <T> T asyncThrows(ThrowingSupplier<T, ? extends Exception> supplier) {
         try {
             return supplier.get();
         } catch (Exception e) {
@@ -81,14 +69,10 @@ public class ConcurrencyUtils {
         }
     }
 
-    public static <I, O> Function<I, O> asyncThrowing(
-            ThrowingFunction<I, O, ? extends Exception> function) {
+    public static <I, O> Function<I, O> asyncThrowingFunction(
+            Supplier<? extends Exception> exceptionSupplier) {
         return (I input) -> {
-            try {
-                return function.apply(input);
-            } catch (Exception e) {
-                throw getCompletionException(e);
-            }
+            throw getCompletionException(exceptionSupplier.get());
         };
     }
 
@@ -108,18 +92,29 @@ public class ConcurrencyUtils {
             throw exception;
         };
     }
-
+    /** Has to be followed by {@link #throwIn} in the end of the chain. */
     @SafeVarargs
     public static <T, E extends Throwable> Function<Throwable, T> catching(
             Consumer<E> consumer, Class<? extends E>... classes) {
+        return catching(
+                (Function<E, T>) e -> {
+                    consumer.accept(e);
+                    // Will ignore this exception in throwIn()
+                    throw new ExceptionCaught(e);
+                },
+                classes);
+    }
+
+    @SafeVarargs
+    public static <T, E extends Throwable> Function<Throwable, T> catching(
+            Function<E, T> function, Class<? extends E>... classes) {
         return throwable -> {
             Throwable e =
                     (throwable instanceof CompletionException) ? throwable.getCause() : throwable;
             Optional<Class<? extends E>> caught =
                     Stream.of(classes).filter(c -> c.isInstance(e)).findFirst();
             if (caught.isPresent()) {
-                consumer.accept(caught.get().cast(e));
-                throw new ExceptionCaught(e);
+                return function.apply(caught.get().cast(e));
             }
             throw getCompletionException(e);
         };
@@ -132,6 +127,7 @@ public class ConcurrencyUtils {
             Thread.currentThread().interrupt();
         }
     }
+
     private static CompletionException getCompletionException(Throwable throwable) {
         if (throwable instanceof CompletionException) {
             return (CompletionException) throwable;

@@ -4,8 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
-import com.brufino.android.common.CommonConstants;
-import com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils;
 import com.brufino.android.playground.provision.Provisioners;
 import com.brufino.android.playground.transfer.TransferConfiguration;
 import com.brufino.android.playground.transfer.TransferManager;
@@ -15,7 +13,6 @@ import java.util.concurrent.ExecutorService;
 
 import static com.brufino.android.common.CommonConstants.TAG;
 import static com.brufino.android.common.utils.Preconditions.checkArgument;
-import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.asyncThrowing;
 import static com.brufino.android.playground.extensions.concurrent.ConcurrencyUtils.execute;
 
 // TODO: If app not open we lose the broadcasts, handle this either here or in bash
@@ -44,7 +41,7 @@ public class CommandReceiver extends BroadcastReceiver {
         TransferManager transferManager = mProvisioner.getTransferManager(context);
         ExecutorService workExecutor = mProvisioner.getWorkExecutor();
         ExecutorService requestExecutor = mProvisioner.getRequestExecutor();
-        execute(workExecutor, () -> onReceiveWork(transferManager, requestExecutor, intent));
+        execute(() -> onReceiveWork(transferManager, requestExecutor, intent), workExecutor);
     }
 
     private void onReceiveWork(
@@ -79,7 +76,7 @@ public class CommandReceiver extends BroadcastReceiver {
                         getRequiredNonNegativeIntExtra(intent, EXTRA_CONSUMER_INTERVAL),
                         getRequiredNonNegativeIntExtra(intent, EXTRA_CONSUMER_BUFFER));
          for (int i = 0; i < repeat; i++) {
-             execute(requestExecutor, () -> manager.enqueueTransfer(code, configuration));
+             execute(() -> manager.enqueueTransfer(code, configuration), requestExecutor);
          }
     }
 

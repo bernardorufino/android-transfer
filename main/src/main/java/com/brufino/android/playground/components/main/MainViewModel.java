@@ -2,7 +2,6 @@ package com.brufino.android.playground.components.main;
 
 import android.app.Application;
 import android.content.Intent;
-import androidx.annotation.Nullable;
 import androidx.lifecycle.*;
 import com.brufino.android.playground.extensions.ViewUtils;
 import com.brufino.android.playground.extensions.livedata.LiveDataPersister;
@@ -20,6 +19,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
+import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.futureLiveData;
+import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.isLoading;
+import static com.brufino.android.playground.extensions.livedata.LiveDataUtils.mutableLiveData;
 import static java.util.stream.Collectors.joining;
 
 public class MainViewModel extends AndroidViewModel {
@@ -36,8 +38,10 @@ public class MainViewModel extends AndroidViewModel {
     public final MutableLiveData<Integer> currentTab;
     public final LiveData<Boolean> loadingSheet;
     public final LiveData<String> sheetButton;
-    private final Observer<CompletableFuture<Intent>> mSheetFutureObserver;
-    private final MutableLiveData<CompletableFuture<Intent>> mSheetFuture;
+    public final LiveData<Boolean> cancelEnabled;
+    public final LiveData<String> cancelButton;
+    public final MutableLiveData<CompletableFuture<Intent>> sheetFuture;
+    public final MutableLiveData<CompletableFuture<Void>> cancelFuture;
     private final LiveDataPersister mPersister;
 
     public MainViewModel(
@@ -66,43 +70,42 @@ public class MainViewModel extends AndroidViewModel {
                         .map(this::getQueueStatus, workExecutor)
                         .getLiveData();
         currentTab = new MutableLiveData<>();
-        mSheetFuture = LiveDataUtils.mutableLiveData(null);
-        mSheetFutureObserver = this::onSheetFutureChanged;
+        sheetFuture = mutableLiveData(null);
         loadingSheet =
-                Transform.source(mSheetFuture)
-                        .map(future -> future != null && !future.isDone(), workExecutor)
+                Transform.source(sheetFuture)
+                        .map(LiveDataUtils::isLoading, workExecutor)
                         .getLiveData();
         sheetButton =
                 Transform.source(loadingSheet)
                         .map(loading -> loading ? "Loading..." : "Export Sheet", workExecutor)
                         .getLiveData();
+
+
+        cancelFuture = mutableLiveData(null);
+        cancelEnabled =
+                Transform.source(transferManager.getLiveTaskInformation())
+                        .combine(
+                                cancelFuture,
+                                (task, future) ->
+                                        task.isPresent() && !isLoading(future),
+                                workExecutor)
+                        .getLiveData();
+        cancelButton =
+                Transform.source(cancelFuture)
+                        .map(future -> isLoading(future) ? "Cancelling..." : "Cancel", workExecutor)
+                        .getLiveData();
     }
 
     void onActivityCreate(LifecycleOwner owner) {
-        mSheetFuture.observe(owner, mSheetFutureObserver);
         mPersister.persist(owner, currentTab, PREFERENCE_CURRENT_TAB, 0);
     }
 
-    private void onSheetFutureChanged(@Nullable CompletableFuture<Intent> future) {
-        if (future != null && future.isDone()) {
-            // Reset LiveData
-            mSheetFuture.postValue(null);
-        }
-    }
-
-    void setSheetFutureObserver(
-            LifecycleOwner owner, Observer<? super CompletableFuture<Intent>> observer) {
-        mSheetFuture.removeObserver(mSheetFutureObserver);
-        mSheetFuture.observe(
-                owner,
-                future -> {
-                    observer.onChanged(future);
-                    mSheetFutureObserver.onChanged(future);
-                });
-    }
-
     void setSheetFuture(CompletableFuture<Intent> future) {
-        LiveDataUtils.futureAsync(mSheetFuture, future);
+        futureLiveData(sheetFuture, future);
+    }
+
+    void setCancelFuture(CompletableFuture<Void> future) {
+        futureLiveData(cancelFuture, future);
     }
 
     private double getMovingAverage(List<Double> elements) {

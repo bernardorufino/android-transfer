@@ -53,8 +53,8 @@ public class MultiThreadTask extends TransferTask {
         mWriterTask = mSubTaskFactory.getWriterSubTask(mController, pipe[0]);
 
         CompletableFuture.allOf(
-                        execute(mTaskExecutor, mReaderTask),
-                        execute(mTaskExecutor, mWriterTask))
+                        execute(mReaderTask, mTaskExecutor),
+                        execute(mWriterTask, mTaskExecutor))
                 .thenAcceptAsync(v -> finishTask(), getExecutor())
                 .exceptionally(
                         catching(

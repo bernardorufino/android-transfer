@@ -28,7 +28,7 @@
                     android:background="@{viewModel.outputWrittenAndDurationBackground}"
                     style="@style/DisplayCell.History"/>
             <TextView
-                    android:text="E"
+                    android:text="@{viewModel.errorText}"
                     android:textColor="@color/darkBackground"
                     android:background="@color/colorAccent"
                     android:onClick="@{viewModel.onTaskErrorClicked}"

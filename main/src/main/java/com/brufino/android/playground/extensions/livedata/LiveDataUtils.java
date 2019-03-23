@@ -64,10 +64,21 @@ public class LiveDataUtils {
         return input -> input;
     }
 
-    public static <T> void futureAsync(
-            MutableLiveData<CompletableFuture<T>> liveData, CompletableFuture<T> future) {
-        setValue(liveData, future);
-        future.whenComplete((value, error) -> setValue(liveData, future));
+    public static <T> void futureLiveData(
+            MutableLiveData<CompletableFuture<T>> liveData, CompletableFuture<T> completableFuture) {
+        setValue(liveData, completableFuture);
+        completableFuture.whenComplete((value, error) -> setValue(liveData, completableFuture));
+        liveData.observeForever(
+                future -> {
+                    if (future != null && future.isDone()) {
+                        // Reset future
+                        liveData.postValue(null);
+                    }
+                });
+    }
+
+    public static <T> boolean isLoading(@Nullable CompletableFuture<T> future) {
+        return future != null && !future.isDone();
     }
 
     public static <T> void setValue(MutableLiveData<T> liveData, T value) {

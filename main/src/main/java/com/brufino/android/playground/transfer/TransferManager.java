@@ -10,15 +10,16 @@ import com.brufino.android.playground.extensions.ApplicationContext;
 import com.brufino.android.playground.extensions.livedata.ImmediateLiveData;
 import com.brufino.android.playground.extensions.livedata.transform.Transform;
 import com.brufino.android.playground.transfer.service.TransferService;
-import com.brufino.android.playground.transfer.task.TaskEntry;
-import com.brufino.android.playground.transfer.task.TaskInformation;
-import com.brufino.android.playground.transfer.task.TaskManager;
+import com.brufino.android.playground.transfer.task.*;
+import com.brufino.android.playground.transfer.task.TaskManager.NoTaskRunningException;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -110,6 +111,19 @@ public class TransferManager {
             mRequestSemaphore.release();
         }
 
+    }
+
+    /**
+     * Future returned will complete normally if cancellation happens, otherwise it will complete
+     * exceptionally. Note that if the task completed successfully this future will complete with
+     * exception {@link TransferCancellationFailedException}.
+     */
+    public CompletableFuture<Void> cancel() throws NoTransferRunningException {
+        try {
+            return mTaskManager.cancelTask();
+        } catch (NoTaskRunningException e) {
+            throw new NoTransferRunningException("Can't cancel transfer.", e);
+        }
     }
 
     /**
